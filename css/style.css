@@ -40,14 +40,25 @@ body {
 
 #main { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
 .view { padding: 12px 12px 20px; max-width: 640px; margin: 0 auto; }
-.map-view { padding: 0; max-width: none; height: 100%; }
+.map-view { padding: 0; max-width: none; height: 100%; position: relative; }
 #map { height: 100%; min-height: 300px; background: #0d1220; }
 
 h2 { font-size: .95rem; margin: 18px 0 8px; color: var(--brass); }
 
 .note { color: var(--muted); font-size: .82rem; margin: 6px 0; }
-.warn { color: var(--ng); font-size: .82rem; margin: 4px 0 4px 8px; }
-.move { color: var(--muted); font-size: .82rem; margin: 4px 0 4px 8px; }
+.warn { color: var(--ng); font-size: .82rem; }
+.move { color: var(--muted); font-size: .82rem; }
+.move-row { display: flex; align-items: center; gap: 10px; margin: 4px 0 4px 8px; flex-wrap: wrap; }
+button.move, button.warn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-align: left;
+}
+.gmap-link { font-size: .72rem; color: var(--muted); text-decoration: underline; white-space: nowrap; }
 
 .card {
   background: var(--panel);
@@ -75,7 +86,17 @@ h2 { font-size: .95rem; margin: 18px 0 8px; color: var(--brass); }
 .name { font-weight: 600; margin-top: 2px; }
 .meta { font-size: .75rem; color: var(--muted); margin-top: 2px; }
 .venue-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
-.venue { font-size: .78rem; color: var(--accent); }
+.venue-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: .78rem;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.venue-link.big { font-size: .88rem; margin: 10px 0; display: block; }
 .badge {
   font-size: .7rem;
   padding: 2px 8px;
@@ -85,6 +106,8 @@ h2 { font-size: .95rem; margin: 18px 0 8px; color: var(--brass); }
 }
 .badge.ok { background: var(--ok); color: #06281a; font-weight: 700; }
 .badge.ng { background: var(--ng); color: #2b0c0c; font-weight: 700; }
+.badge.award { background: var(--brass); color: #2b1f05; font-weight: 700; }
+.badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }
 
 .sim-row, .loc-row {
   display: flex;
@@ -213,8 +236,40 @@ summary {
   font-size: 1rem;
   cursor: pointer;
 }
+.leaflet-tooltip {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--panel2);
+  font-size: .78rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.4);
+}
+.leaflet-tooltip-top:before { border-top-color: var(--panel2); }
+
 .popup { font-size: .8rem; line-height: 1.5; }
 .popup-btns { display: flex; gap: 6px; margin-top: 8px; }
+
+.route-banner {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 900;
+  background: var(--panel);
+  border: 1px solid var(--panel2);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
+.route-banner-text { flex: 1; min-width: 0; }
+.route-banner-title { font-weight: 700; font-size: .88rem; color: var(--text); }
+.route-banner-sub { font-size: .74rem; color: var(--muted); margin-top: 2px; }
+.route-banner-btns { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.close-route { background: var(--panel2); color: var(--text); }
 
 /* モーダル */
 #modal {
@@ -236,9 +291,15 @@ summary {
   flex-direction: column;
   padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
 }
-.modal-head { display: flex; align-items: center; gap: 8px; }
+.modal-head { display: flex; align-items: flex-start; gap: 8px; }
 .modal-head h2 { margin: 0; flex: 1; font-size: 1rem; color: var(--text); }
+.modal-head-title { flex: 1; min-width: 0; }
+.modal-head-title h2 { font-size: 1.05rem; }
+.kana { font-size: .72rem; color: var(--muted); margin-top: 2px; }
 .close { background: none; border: none; color: var(--muted); font-size: 1.2rem; cursor: pointer; padding: 4px 8px; }
 .walk-row { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; flex-wrap: wrap; }
 .walk-min { font-size: .82rem; color: var(--brass); white-space: nowrap; }
 .modal-list { overflow-y: auto; }
+.artist-when { font-size: .85rem; color: var(--brass); margin-top: 4px; }
+.intro { font-size: .85rem; line-height: 1.7; color: var(--text); white-space: pre-wrap; margin: 12px 0; }
+.fav.big { font-size: 1.5rem; }

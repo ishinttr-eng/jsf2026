@@ -1,13 +1,33 @@
 // JSF Navi 2026 - メインUI
 
-import { DAYS, DAY_LABELS, fmtMin, normalize, el, gmapsWalkUrl } from "./util.js";
-import { store, loadData, walkBetween, walkFromHere, toggleFavorite, nowInfo, requestLocation } from "./store.js";
+import { DAYS, DAY_LABELS, fmtMin, normalize, perfKey, el, gmapsWalkUrl, haversineM } from "./util.js";
+import { store, loadData, walkBetween, walkFromHere, getRoute, toggleFavorite, nowInfo, requestLocation } from "./store.js";
 
 const main = document.getElementById("main");
 let currentTab = "now";
-let map = null, markers = new Map(), meMarker = null;
-let ttState = { day: DAYS[0], q: "", venue: "", genre: "" };
-let detailVenueId = null, detailDay = DAYS[0], detailFrom = "here";
+let map = null, markers = new Map(), meMarker = null, routeLayer = null;
+let ttState = { day: "", q: "", venue: "", genre: "" }; // day: "" は「すべての日程」
+// detail: {kind:"venue", venueId, day, from} | {kind:"artist", perf} | null
+let detail = null;
+// activeRoute: {fromId, toId, fromLabel, toLabel} | {fromHere: true, toId, toLabel} | null
+let activeRoute = null;
+
+// 会場詳細・マイタイムテーブルなどから、地図タブに切り替えてルートを表示する
+function showRouteBetween(fromId, toId) {
+  const from = store.venueById.get(fromId), to = store.venueById.get(toId);
+  activeRoute = { fromId, toId, fromLabel: shortVenueName(from), toLabel: shortVenueName(to) };
+  detail = null;
+  currentTab = "map";
+  render();
+}
+
+function showRouteFromHere(toId) {
+  const to = store.venueById.get(toId);
+  activeRoute = { fromHere: true, toId, toLabel: shortVenueName(to) };
+  detail = null;
+  currentTab = "map";
+  render();
+}
 
 // ---------- 共通部品 ----------
 
@@ -20,13 +40,13 @@ function shortVenueName(v) {
 }
 
 function favButton(p) {
-  const active = store.favorites.has(p.id);
+  const active = store.favorites.has(perfKey(p));
   return el("button", {
     class: `fav ${active ? "on" : ""}`,
     "aria-label": "お気に入り",
     onclick: (e) => {
       e.stopPropagation();
-      toggleFavorite(p.id);
+      toggleFavorite(perfKey(p));
       render();
     },
   }, active ? "★" : "☆");
@@ -46,7 +66,7 @@ function perfCard(p, opts = {}) {
       badges.push(el("span", { class: `badge ${ok ? "ok" : "ng"}` }, ok ? "間に合う" : "間に合わない"));
     }
   }
-  return el("div", { class: "card", onclick: () => openVenue(p.venueId, p.date) },
+  return el("div", { class: "card", onclick: () => openArtist(p) },
     el("div", { class: "card-head" },
       el("span", { class: "time" }, `${p.start}–${p.end}`),
       opts.dayLabel ? el("span", { class: "day-tag" }, DAY_LABELS[p.date]) : null,
@@ -54,7 +74,10 @@ function perfCard(p, opts = {}) {
     el("div", { class: "name" }, p.name),
     meta.length ? el("div", { class: "meta" }, meta.join(" ・ ")) : null,
     el("div", { class: "venue-line" },
-      el("span", { class: "venue" }, `📍 ${venueLabel(v).replace(/ supported by.*$/i, "")}`),
+      el("button", {
+        class: "venue-link",
+        onclick: (e) => { e.stopPropagation(); openVenue(p.venueId, p.date); },
+      }, `📍 ${venueLabel(v).replace(/ supported by.*$/i, "")}`),
       ...badges));
 }
 
@@ -132,17 +155,18 @@ function locationRow() {
 function viewTimetable() {
   const wrap = el("div", { class: "view" });
 
-  const dayTabs = el("div", { class: "day-tabs" },
-    DAYS.map((d) => el("button", {
-      class: `day-tab ${ttState.day === d ? "active" : ""}`,
-      onclick: () => { ttState.day = d; render(); },
-    }, DAY_LABELS[d])));
-
   const search = el("input", {
     class: "search", type: "search", placeholder: "出演者名・かな・ジャンルで検索",
     value: ttState.q,
     oninput: (e) => { ttState.q = e.target.value; renderTTList(listBox); },
   });
+
+  const dayTabs = el("div", { class: "day-tabs" },
+    [{ value: "", label: "すべて" }, ...DAYS.map((d) => ({ value: d, label: DAY_LABELS[d] }))]
+      .map(({ value, label }) => el("button", {
+        class: `day-tab ${ttState.day === value ? "active" : ""}`,
+        onclick: () => { ttState.day = value; render(); },
+      }, label)));
 
   const venueSel = el("select", { class: "select", onchange: (e) => { ttState.venue = e.target.value; renderTTList(listBox); } },
     el("option", { value: "" }, "全会場"),
@@ -170,7 +194,8 @@ function viewTimetable() {
 function renderTTList(box) {
   box.replaceChildren();
   const q = normalize(ttState.q);
-  let list = store.performances.filter((p) => p.date === ttState.day);
+  const crossDate = ttState.day === ""; // 「すべての日程」選択時は日付をまたいで探す
+  let list = crossDate ? store.performances : store.performances.filter((p) => p.date === ttState.day);
   if (ttState.venue) list = list.filter((p) => p.venueId === ttState.venue);
   if (ttState.genre) list = list.filter((p) => p.genre === ttState.genre);
   if (q) list = list.filter((p) =>
@@ -178,16 +203,16 @@ function renderTTList(box) {
 
   box.append(el("p", { class: "note" }, `${list.length}件`));
   if (ttState.venue || q) {
-    // 会場指定・検索時はフラットに時刻順
-    for (const p of list) box.append(perfCard(p));
+    // 会場指定・検索時はフラットに時刻順（日付をまたぐ場合は日付バッジを表示）
+    for (const p of list) box.append(perfCard(p, { dayLabel: crossDate }));
   } else {
-    // 会場ごとにグループ表示
+    // 会場ごとにグループ表示（日付をまたぐ場合は日付バッジを表示）
     for (const v of store.venues) {
       const ps = list.filter((p) => p.venueId === v.id);
       if (!ps.length) continue;
       const det = el("details", {},
         el("summary", {}, `${venueLabel(v)}（${ps.length}）`),
-        ps.map((p) => perfCard(p)));
+        ps.map((p) => perfCard(p, { dayLabel: crossDate })));
       box.append(det);
     }
   }
@@ -199,11 +224,10 @@ function viewMap() {
   const wrap = el("div", { class: "view map-view" });
   const mapDiv = el("div", { id: "map" });
   wrap.append(mapDiv);
-  requestAnimationFrame(() => initMap(mapDiv));
   return wrap;
 }
 
-function initMap(mapDiv) {
+function initMap(mapDiv, wrap) {
   if (map) { map.remove(); map = null; }
   map = L.map(mapDiv).setView([38.2625, 140.871], 15);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -219,6 +243,7 @@ function initMap(mapDiv) {
       iconSize: [26, 26], iconAnchor: [13, 13],
     });
     const m = L.marker([v.lat, v.lng], { icon }).addTo(map);
+    m.bindTooltip(venueLabel(v), { direction: "top", offset: [0, -14] });
     m.bindPopup(() => popupHtml(v), { maxWidth: 260 });
     markers.set(v.id, m);
   }
@@ -240,11 +265,69 @@ function initMap(mapDiv) {
         else meMarker = L.circleMarker([loc.lat, loc.lng],
           { radius: 8, color: "#fff", weight: 2, fillColor: "#2b7de9", fillOpacity: 1 }).addTo(map);
         map.setView([loc.lat, loc.lng], 16);
+        drawActiveRoute(wrap);
       } catch { b.textContent = "❌"; setTimeout(() => { b.textContent = "📍"; }, 1500); }
     });
     return b;
   };
   locBtn.addTo(map);
+
+  drawActiveRoute(wrap);
+}
+
+// 会場間（または現在地→会場）のルートを地図上に描画し、Googleリンク付きのバナーを出す
+function drawActiveRoute(wrap) {
+  if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+  document.getElementById("route-banner")?.remove();
+  if (!activeRoute) return;
+
+  const to = store.venueById.get(activeRoute.toId);
+  let coords = null, from = null, precomputed = null;
+
+  if (activeRoute.fromHere) {
+    if (store.location) {
+      from = store.location;
+      coords = [[store.location.lat, store.location.lng], [to.lat, to.lng]];
+    }
+  } else {
+    from = store.venueById.get(activeRoute.fromId);
+    precomputed = getRoute(activeRoute.fromId, activeRoute.toId);
+    coords = precomputed ? precomputed.coords : [[from.lat, from.lng], [to.lat, to.lng]];
+  }
+
+  const isApprox = !precomputed;
+  const fromLabel = activeRoute.fromHere ? "現在地" : activeRoute.fromLabel;
+
+  let subText;
+  if (!coords) {
+    subText = "現在地が未取得です（📍ボタンで取得できます）";
+  } else if (precomputed) {
+    subText = `🚶 徒歩約${precomputed.durMin}分（約${precomputed.distM}m）`;
+  } else {
+    subText = `📏 直線距離の目安 約${Math.round(haversineM(coords[0][0], coords[0][1], coords[1][0], coords[1][1]))}m（実測ルート未取得）`;
+  }
+
+  if (coords) {
+    routeLayer = L.polyline(coords, {
+      color: isApprox ? "#9aa5c0" : "#e8b64c",
+      weight: isApprox ? 3 : 5,
+      opacity: 0.9,
+      dashArray: isApprox ? "6 8" : null,
+    }).addTo(map);
+    map.fitBounds(routeLayer.getBounds(), { padding: [48, 48] });
+  }
+
+  const gUrl = gmapsWalkUrl(to.lat, to.lng, from?.lat, from?.lng);
+  wrap.append(el("div", { id: "route-banner", class: "route-banner" },
+    el("div", { class: "route-banner-text" },
+      el("div", { class: "route-banner-title" }, `${fromLabel} → ${activeRoute.toLabel}`),
+      el("div", { class: "route-banner-sub" }, subText)),
+    el("div", { class: "route-banner-btns" },
+      el("a", { class: "btn small go", target: "_blank", rel: "noopener", href: gUrl }, "Googleで開く"),
+      el("button", {
+        class: "btn small close-route",
+        onclick: () => { activeRoute = null; render(); },
+      }, "✕"))));
 }
 
 function popupHtml(v) {
@@ -283,7 +366,7 @@ function popupHtml(v) {
 
 function viewMy() {
   const wrap = el("div", { class: "view" });
-  const favs = store.performances.filter((p) => store.favorites.has(p.id));
+  const favs = store.performances.filter((p) => store.favorites.has(perfKey(p)));
   if (!favs.length) {
     wrap.append(el("p", { class: "note" }, "☆をタップしてお気に入り登録すると、ここに自分のタイムテーブルができます。"));
     return wrap;
@@ -294,15 +377,22 @@ function viewMy() {
     wrap.append(el("h2", {}, DAY_LABELS[day]));
     let prev = null;
     for (const p of list) {
-      // 前のお気に入りとの間の移動チェック
+      // 前のお気に入りとの間の移動チェック（クリックで地図にその2会場間のルートを表示、横のリンクでGoogleマップも開ける）
       if (prev) {
         const need = walkBetween(prev.venueId, p.venueId);
         const gap = p.startMin - prev.endMin;
+        const prevV = store.venueById.get(prev.venueId), curV = store.venueById.get(p.venueId);
+        const gHref = gmapsWalkUrl(curV.lat, curV.lng, prevV.lat, prevV.lng);
+        const moveRow = (labelClass, text) => el("div", { class: "move-row" },
+          el("button", {
+            class: labelClass, onclick: () => showRouteBetween(prevV.id, curV.id),
+          }, text),
+          el("a", { class: "gmap-link", href: gHref, target: "_blank", rel: "noopener" }, "Googleで開く"));
         if (gap < 0) {
-          wrap.append(el("p", { class: "warn" }, "⚠️ 時間が重なっています"));
+          wrap.append(moveRow("warn", `⚠️ 時間が重なっています（会場間 徒歩約${need}分）`));
         } else if (need > 0) {
           const ok = need <= gap;
-          wrap.append(el("p", { class: ok ? "move" : "warn" },
+          wrap.append(moveRow(ok ? "move" : "warn",
             `${ok ? "🚶" : "⚠️"} 移動 約${need}分（空き${gap}分）${ok ? "" : " — 間に合わない可能性"}`));
         }
       }
@@ -313,61 +403,79 @@ function viewMy() {
   return wrap;
 }
 
-// ---------- 会場詳細（モーダル） ----------
+// ---------- 詳細モーダル（会場・アーティスト） ----------
 
 function openVenue(venueId, day) {
-  detailVenueId = venueId;
-  detailDay = day || DAYS[0];
+  detail = { kind: "venue", venueId, day: day || DAYS[0], from: "here" };
   renderDetail();
+}
+
+function openArtist(perf) {
+  detail = { kind: "artist", perf };
+  renderDetail();
+}
+
+function closeDetail() {
+  detail = null;
+  renderDetail();
+  render();
 }
 
 function renderDetail() {
   document.getElementById("modal")?.remove();
-  if (!detailVenueId) return;
-  const v = store.venueById.get(detailVenueId);
+  if (!detail) return;
+  const modal = detail.kind === "venue" ? venueModal(detail) : artistModal(detail.perf);
+  document.body.append(modal);
+}
 
-  const close = () => { detailVenueId = null; renderDetail(); render(); };
+function venueModal(d) {
+  const v = store.venueById.get(d.venueId);
 
   const dayTabs = el("div", { class: "day-tabs" },
-    DAYS.map((d) => el("button", {
-      class: `day-tab ${detailDay === d ? "active" : ""} ${v.days.includes(d) ? "" : "disabled"}`,
-      onclick: () => { detailDay = d; renderDetail(); },
-    }, DAY_LABELS[d] + (v.days.includes(d) ? "" : "（開催なし）"))));
+    DAYS.map((day) => el("button", {
+      class: `day-tab ${d.day === day ? "active" : ""} ${v.days.includes(day) ? "" : "disabled"}`,
+      onclick: () => { d.day = day; renderDetail(); },
+    }, DAY_LABELS[day] + (v.days.includes(day) ? "" : "（開催なし）"))));
 
   // 移動元セレクタ
-  const fromSel = el("select", { class: "select", onchange: (e) => { detailFrom = e.target.value; renderDetail(); } },
+  const fromSel = el("select", { class: "select", onchange: (e) => { d.from = e.target.value; renderDetail(); } },
     el("option", { value: "here" }, "現在地から"),
     store.venues.filter((x) => x.id !== v.id).map((x) => {
       const o = el("option", { value: x.id }, venueLabel(x));
-      if (detailFrom === x.id) o.selected = true;
+      if (d.from === x.id) o.selected = true;
       return o;
     }));
-  if (detailFrom === "here") fromSel.value = "here";
+  if (d.from === "here") fromSel.value = "here";
 
   let walkText;
-  if (detailFrom === "here") {
+  if (d.from === "here") {
     const w = walkFromHere(v.id);
     walkText = w != null ? `🚶 徒歩 約${w}分` : "（現在地未取得）";
   } else {
-    walkText = `🚶 徒歩 約${walkBetween(detailFrom, v.id)}分`;
+    walkText = `🚶 徒歩 約${walkBetween(d.from, v.id)}分`;
   }
 
-  const ps = store.performances.filter((p) => p.date === detailDay && p.venueId === v.id);
+  const ps = store.performances.filter((p) => p.date === d.day && p.venueId === v.id);
   const info = nowInfo();
 
-  const modal = el("div", { id: "modal", onclick: (e) => { if (e.target.id === "modal") close(); } },
+  return el("div", { id: "modal", onclick: (e) => { if (e.target.id === "modal") closeDetail(); } },
     el("div", { class: "modal-body" },
       el("div", { class: "modal-head" },
         el("h2", {}, `S${String(v.stageNo).padStart(2, "0")} ${shortVenueName(v)}`),
-        el("button", { class: "close", onclick: close }, "✕")),
+        el("button", { class: "close", onclick: closeDetail }, "✕")),
       el("div", { class: "walk-row" },
         fromSel,
-        el("span", { class: "walk-min" }, walkText),
+        el("span", { class: "walk-min" }, walkText)),
+      el("div", { class: "walk-row" },
+        el("button", {
+          class: "btn small",
+          onclick: () => (d.from === "here" ? showRouteFromHere(v.id) : showRouteBetween(d.from, v.id)),
+        }, "🗺 地図で見る"),
         el("a", {
           class: "btn small go", target: "_blank", rel: "noopener",
           href: gmapsWalkUrl(v.lat, v.lng,
-            detailFrom === "here" ? store.location?.lat : store.venueById.get(detailFrom)?.lat,
-            detailFrom === "here" ? store.location?.lng : store.venueById.get(detailFrom)?.lng),
+            d.from === "here" ? store.location?.lat : store.venueById.get(d.from)?.lat,
+            d.from === "here" ? store.location?.lng : store.venueById.get(d.from)?.lng),
         }, "ここへ行く")),
       dayTabs,
       el("div", { class: "modal-list" },
@@ -377,7 +485,43 @@ function renderDetail() {
           if (playingNow) c.classList.add("playing");
           return c;
         }) : el("p", { class: "note" }, "この日の演奏はありません"))));
-  document.body.append(modal);
+}
+
+function artistModal(p) {
+  const v = store.venueById.get(p.venueId);
+  const active = store.favorites.has(perfKey(p));
+
+  const badges = [];
+  if (p.genre) badges.push(el("span", { class: "badge" }, p.genre));
+  if (p.isU25) badges.push(el("span", { class: "badge" }, "U-25"));
+  if (p.region) badges.push(el("span", { class: "badge" }, p.region));
+  if (p.awardEntry && p.awardEntry !== "参加しない") badges.push(el("span", { class: "badge award" }, `🏆 ${p.awardEntry}`));
+
+  return el("div", { id: "modal", onclick: (e) => { if (e.target.id === "modal") closeDetail(); } },
+    el("div", { class: "modal-body" },
+      el("div", { class: "modal-head" },
+        el("div", { class: "modal-head-title" },
+          el("h2", {}, p.name),
+          p.kana ? el("div", { class: "kana" }, p.kana) : null),
+        el("button", {
+          class: `fav big ${active ? "on" : ""}`,
+          "aria-label": "お気に入り",
+          onclick: () => { toggleFavorite(perfKey(p)); renderDetail(); },
+        }, active ? "★" : "☆"),
+        el("button", { class: "close", onclick: closeDetail }, "✕")),
+      badges.length ? el("div", { class: "badge-row" }, badges) : null,
+      el("div", { class: "artist-when" }, `🕒 ${DAY_LABELS[p.date]} ${p.start}–${p.end}`),
+      el("button", {
+        class: "venue-link big",
+        onclick: () => openVenue(p.venueId, p.date),
+      }, `📍 S${String(v.stageNo).padStart(2, "0")} ${shortVenueName(v)}`),
+      p.intro
+        ? el("p", { class: "intro" }, p.intro)
+        : el("p", { class: "note" }, "紹介文はありません"),
+      el("a", {
+        class: "btn go", target: "_blank", rel: "noopener",
+        href: gmapsWalkUrl(v.lat, v.lng, store.location?.lat, store.location?.lng),
+      }, "この会場へ行く")));
 }
 
 // ---------- タブ・描画 ----------
@@ -385,11 +529,14 @@ function renderDetail() {
 const views = { now: viewNow, timetable: viewTimetable, map: viewMap, my: viewMy };
 
 function render() {
-  main.replaceChildren(views[currentTab]());
+  const view = views[currentTab]();
+  main.replaceChildren(view);
   for (const b of document.querySelectorAll(".tab-btn")) {
     b.classList.toggle("active", b.dataset.tab === currentTab);
   }
-  if (detailVenueId) renderDetail();
+  // DOMへの接続後、同期的に初期化する（rAFに任せるとバックグラウンドタブで遅延・スキップされるため）
+  if (currentTab === "map") initMap(view.querySelector("#map"), view);
+  renderDetail(); // detail が null のときは既存モーダルの除去だけ行う
 }
 
 document.getElementById("tabs").addEventListener("click", (e) => {

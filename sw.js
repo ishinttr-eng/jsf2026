@@ -1,6 +1,6 @@
 // JSF Navi 2026 Service Worker
 // VERSION を上げると全キャッシュが更新される（データ更新時はここを変える）
-const VERSION = "v1";
+const VERSION = "v12";
 const CACHE = `jsf-navi-${VERSION}`;
 
 const APP_SHELL = [
@@ -13,6 +13,7 @@ const APP_SHELL = [
   "data/venues.json",
   "data/performances.json",
   "data/walktimes.json",
+  "data/routes.json",
   "icon.svg",
   "manifest.webmanifest",
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
@@ -20,7 +21,15 @@ const APP_SHELL = [
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+  // addAllはブラウザのHTTPキャッシュ経由で古いファイルを拾うことがあるため、
+  // cache: "reload" でネットワークから確実に最新を取得してから保存する
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => Promise.all(
+        APP_SHELL.map((url) => fetch(url, { cache: "reload" }).then((res) => c.put(url, res)))
+      ))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (e) => {

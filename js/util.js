@@ -13,6 +13,12 @@ export function fmtMin(min) {
   return `${h}:${String(m).padStart(2, "0")}`;
 }
 
+// 同じperformerIdが複数日に再登場する演目（例: オープニングパレード）があるため、
+// お気に入りは id 単体ではなく日付・開始時刻込みの複合キーで管理する
+export function perfKey(p) {
+  return `${p.id}__${p.date}__${p.start}`;
+}
+
 // 検索用正規化: NFKC → 小文字 → カタカナをひらがなへ
 export function normalize(s) {
   return (s || "")
@@ -34,6 +40,33 @@ export function haversineM(lat1, lng1, lat2, lng2) {
 export function walkMinFromCoords(lat1, lng1, lat2, lng2) {
   const d = haversineM(lat1, lng1, lat2, lng2) * 1.3;
   return Math.max(1, Math.ceil(d / 80));
+}
+
+// OSRM/Googleのエンコード済みポリライン文字列を [lat,lng] の配列にデコード（precision 5）
+export function decodePolyline(str, precision = 5) {
+  const factor = 10 ** precision;
+  let index = 0, lat = 0, lng = 0;
+  const coords = [];
+  while (index < str.length) {
+    let shift = 0, result = 0, byte = null;
+    do {
+      byte = str.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    shift = 0; result = 0;
+    do {
+      byte = str.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    coords.push([lat / factor, lng / factor]);
+  }
+  return coords;
 }
 
 // Googleマップの徒歩ナビへ引き渡すURL（APIキー不要）

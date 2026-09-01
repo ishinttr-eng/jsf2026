@@ -1,6 +1,6 @@
 // データ読み込み・お気に入り・現在地などの状態管理
 
-import { toMin, walkMinFromCoords } from "./util.js";
+import { toMin, walkMinFromCoords, decodePolyline } from "./util.js";
 
 const FAV_KEY = "jsf.favorites";
 
@@ -10,6 +10,8 @@ export const store = {
   performances: [],      // [{id, name, kana, venueId, date, start, end, ...}]
   walk: null,            // {ids, minutes}
   walkIndex: new Map(),  // venueId -> matrix index
+  routes: null,          // {routes: {"S-01|S-02": {distM, durMin, poly}}} 事前計算済みルート（未取得時はnull）
+  routeCache: new Map(), // "S-01|S-02" -> デコード済み{distM, durMin, coords}
   updatedAt: "",
   favorites: new Set(JSON.parse(localStorage.getItem(FAV_KEY) || "[]")),
   location: null,        // {lat, lng} 現在地（取得済みのとき）
@@ -30,6 +32,27 @@ export async function loadData() {
   store.walk = w;
   store.venueById = new Map(store.venues.map((x) => [x.id, x]));
   store.walkIndex = new Map(w.ids.map((id, i) => [id, i]));
+
+  // ルートデータはまだ生成されていない可能性があるため、失敗しても他機能を止めない
+  try {
+    store.routes = await fetch("data/routes.json").then((r) => (r.ok ? r.json() : null));
+  } catch {
+    store.routes = null;
+  }
+}
+
+// 会場間の事前計算済みルート（ポリライン・距離・所要時間）。データ未生成ならnull
+export function getRoute(venueIdA, venueIdB) {
+  if (!store.routes || venueIdA === venueIdB) return null;
+  const key = venueIdA < venueIdB ? `${venueIdA}|${venueIdB}` : `${venueIdB}|${venueIdA}`;
+  if (store.routeCache.has(key)) return store.routeCache.get(key);
+  const raw = store.routes.routes[key];
+  if (!raw) return null;
+  const decoded = decodePolyline(raw.poly);
+  const coords = venueIdA < venueIdB ? decoded : decoded.slice().reverse();
+  const result = { distM: raw.distM, durMin: raw.durMin, coords };
+  store.routeCache.set(key, result);
+  return result;
 }
 
 // 会場間の徒歩分数（事前計算マトリクスから）
