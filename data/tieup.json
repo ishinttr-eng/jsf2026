@@ -1,0 +1,22 @@
+{
+  "note": "タイアップステージは各協賛社が独自に運営しており、公式の出演者フィードには含まれないため、出演スケジュールは掲載していません（場所と名称のみ）。座標は公式マップ・OpenStreetMap検索から手作業で収集したもので、T1・T6・T7は正確な地点が公表されていないため近隣の目印会場の座標で近似しています。",
+  "sourceMapUpdatedAt": "2026-09-01",
+  "stages": [
+    { "id": "T1", "name": "NOW to NEXT", "sponsor": "", "lat": 38.2671496, "lng": 140.8713276, "approx": true },
+    { "id": "T2", "name": "PROUD STREETJAZZ", "sponsor": "野村不動産株式会社", "lat": 38.26742, "lng": 140.87207, "approx": false },
+    { "id": "T3", "name": "おとどけチータくんお花見広場", "sponsor": "株式会社高速", "lat": 38.2603321, "lng": 140.8632128, "approx": false },
+    { "id": "T4", "name": "NHKやっぺぇミュージックフェス", "sponsor": "NHK仙台放送局", "lat": 38.2661119, "lng": 140.8743021, "approx": false },
+    { "id": "T5", "name": "仙台オクトーバーフェスト", "sponsor": "株式会社ユーメディア", "lat": 38.2622268, "lng": 140.8622435, "approx": true },
+    { "id": "T6", "name": "J'Z DAYBREAK SESSIONS", "sponsor": "LIVE RESTAURANT J'Z×熊谷駿", "lat": 38.26515, "lng": 140.87053, "approx": true },
+    { "id": "T7", "name": "でいぐるみフェス", "sponsor": "", "lat": 38.26403, "lng": 140.87087, "approx": true },
+    { "id": "T8", "name": "Bang bar SENDAI 三越本館前", "sponsor": "一番町四丁目 夜イベント実行委員会", "lat": 38.26515, "lng": 140.87053, "approx": false },
+    { "id": "T9", "name": "MIRAIステージ produced by 森トラスト", "sponsor": "森トラスト株式会社", "lat": 38.2561359, "lng": 140.8764495, "approx": false },
+    { "id": "T10", "name": "THE CITY BAKERY ディナータイム・ジャズ・ライブ", "sponsor": "", "lat": 38.2596566, "lng": 140.8837997, "approx": true },
+    { "id": "T11", "name": "STREETJazz in DaTeRIUM 2026", "sponsor": "仙台ターミナルビル株式会社", "lat": 38.2626309, "lng": 140.8814451, "approx": true },
+    { "id": "T12", "name": "定禅寺ストリートジャズフェスティバル in SENDAI STATION", "sponsor": "JR東日本関連企業", "lat": 38.2596566, "lng": 140.8837997, "approx": true },
+    { "id": "T13", "name": "PARCO2 FREE JAZZ LIVE", "sponsor": "", "lat": 38.2589561, "lng": 140.8795858, "approx": false },
+    { "id": "T14", "name": "KAMISUGI STREETJAZZ PARK", "sponsor": "イオンモール仙台上杉", "lat": 38.2761918, "lng": 140.8726726, "approx": false },
+    { "id": "T15", "name": "TAGAJAZZ2026〜世界のカレー×熱唱〜", "sponsor": "多賀城市文化センター", "lat": 38.2951931, "lng": 141.0049246, "approx": false },
+    { "id": "J", "name": "Swing!ジュニアジャズフェスタ", "sponsor": "未来応援ステージ", "lat": 38.265609, "lng": 140.8655539, "approx": true }
+  ]
+}

@@ -247,6 +247,17 @@ function initMap(mapDiv, wrap) {
     m.bindPopup(() => popupHtml(v), { maxWidth: 260 });
     markers.set(v.id, m);
   }
+  for (const t of store.tieup) {
+    const isJunior = t.id === "J";
+    const icon = L.divIcon({
+      className: isJunior ? "tieup-pin junior" : "tieup-pin",
+      html: `<span>${t.id}</span>`,
+      iconSize: isJunior ? [26, 26] : [30, 24], iconAnchor: isJunior ? [13, 13] : [15, 12],
+    });
+    const m = L.marker([t.lat, t.lng], { icon }).addTo(map);
+    m.bindTooltip(`${t.name}${t.approx ? "（位置は目安）" : ""}`, { direction: "top", offset: [0, -14] });
+    m.bindPopup(tieupPopupHtml(t), { maxWidth: 260 });
+  }
   if (store.location) {
     meMarker = L.circleMarker([store.location.lat, store.location.lng],
       { radius: 8, color: "#fff", weight: 2, fillColor: "#2b7de9", fillOpacity: 1 }).addTo(map);
@@ -308,12 +319,12 @@ function drawActiveRoute(wrap) {
   }
 
   if (coords) {
-    routeLayer = L.polyline(coords, {
-      color: isApprox ? "#9aa5c0" : "#e8b64c",
-      weight: isApprox ? 3 : 5,
-      opacity: 0.9,
-      dashArray: isApprox ? "6 8" : null,
-    }).addTo(map);
+    // 地図タイルの色（特に主要道路のオレンジ系）に埋もれないよう、白い縁取り＋高彩度の線色で描画する
+    const color = isApprox ? "#3f7dff" : "#ff2f92";
+    const dash = isApprox ? "7 9" : null;
+    const halo = L.polyline(coords, { color: "#ffffff", weight: isApprox ? 7 : 9, opacity: 0.95, dashArray: dash });
+    const line = L.polyline(coords, { color, weight: isApprox ? 3 : 5, opacity: 1, dashArray: dash });
+    routeLayer = L.featureGroup([halo, line]).addTo(map);
     map.fitBounds(routeLayer.getBounds(), { padding: [48, 48] });
   }
 
@@ -358,6 +369,26 @@ function popupHtml(v) {
   go.rel = "noopener";
   go.href = gmapsWalkUrl(v.lat, v.lng, store.location?.lat, store.location?.lng);
   btns.append(detail, go);
+  div.append(btns);
+  return div;
+}
+
+function tieupPopupHtml(t) {
+  const div = document.createElement("div");
+  div.className = "popup";
+  let lines = `<b>タイアップステージ ${t.id}</b><br>${t.name}`;
+  if (t.sponsor) lines += `<br>主催: ${t.sponsor}`;
+  lines += `<br><span class="note">出演スケジュールは主催者発表をご確認ください${t.approx ? "／位置は目安です" : ""}</span>`;
+  div.innerHTML = lines;
+  const btns = document.createElement("div");
+  btns.className = "popup-btns";
+  const go = document.createElement("a");
+  go.className = "btn small go";
+  go.textContent = "ここへ行く";
+  go.target = "_blank";
+  go.rel = "noopener";
+  go.href = gmapsWalkUrl(t.lat, t.lng, store.location?.lat, store.location?.lng);
+  btns.append(go);
   div.append(btns);
   return div;
 }

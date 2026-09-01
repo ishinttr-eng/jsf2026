@@ -227,6 +227,28 @@ summary {
   border: 2px solid #fff;
   box-shadow: 0 1px 4px rgba(0,0,0,.4);
 }
+
+/* タイアップステージ: 赤い角丸バッジでレギュラーステージ（丸ピン）と区別 */
+.tieup-pin span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--ng);
+  color: #fff;
+  font-weight: 700;
+  font-size: .68rem;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+}
+.tieup-pin.junior span {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+}
 .map-loc-btn {
   width: 34px;
   height: 34px;
