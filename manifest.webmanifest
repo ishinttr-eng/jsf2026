@@ -1,0 +1,13 @@
+{
+  "name": "JSF Navi 2026 - 定禅寺ストリートジャズフェスティバル ナビ",
+  "short_name": "JSF Navi",
+  "description": "定禅寺ストリートジャズフェスティバル2026 非公式ナビアプリ",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#131a2b",
+  "theme_color": "#131a2b",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
