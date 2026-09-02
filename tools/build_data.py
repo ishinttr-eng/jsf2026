@@ -7,6 +7,7 @@
 import json
 import math
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -143,7 +144,13 @@ def main():
                        ensure_ascii=False),
             encoding="utf-8")
 
-    print(f"venues: {len(venue_list)}, performances: {len(performances)}, updatedAt: {updated_at}")
+    # 「うちのシステムが直近にいつ確認したか」はSWのVERSIONとは独立して更新したいので別ファイルに分ける。
+    # ここに書けば、データに実質差分が無い定期チェックでもこの時刻だけは必ず進む
+    checked_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    (OUT / "checked.json").write_text(
+        json.dumps({"checkedAt": checked_at}, ensure_ascii=False), encoding="utf-8")
+
+    print(f"venues: {len(venue_list)}, performances: {len(performances)}, updatedAt: {updated_at}, checkedAt: {checked_at}")
 
 
 if __name__ == "__main__":

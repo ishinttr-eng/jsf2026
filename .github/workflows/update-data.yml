@@ -22,15 +22,21 @@ jobs:
       - name: アプリ用JSONを再生成
         run: python3 tools/build_data.py
 
-      - name: 差分があればコミット・プッシュ
+      - name: コミット・プッシュ（確認日時は差分の有無に関わらず必ず更新）
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/venues.json data/performances.json tools/raw/performers-data.js
           if git diff --cached --quiet; then
-            echo "変更なし"
+            DATA_CHANGED=0
           else
-            UPDATED_AT=$(python3 -c "import json;print(json.load(open('data/performances.json'))['updatedAt'])")
-            git commit -m "出演者データを自動更新（公式更新: ${UPDATED_AT}）"
-            git push
+            DATA_CHANGED=1
           fi
+          git add data/checked.json
+          UPDATED_AT=$(python3 -c "import json;print(json.load(open('data/performances.json'))['updatedAt'])")
+          if [ "$DATA_CHANGED" = "1" ]; then
+            git commit -m "出演者データを自動更新（公式更新: ${UPDATED_AT}）"
+          else
+            git commit -m "定期チェック（差分なし・公式更新: ${UPDATED_AT}）"
+          fi
+          git push

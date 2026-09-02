@@ -710,10 +710,10 @@ async function currentSwVersion() {
 }
 
 loadData().then(async () => {
-  const d = new Date(store.updatedAt);
+  const d = new Date(store.checkedAt);
   const ver = await currentSwVersion();
   document.getElementById("updated").textContent =
-    `データ: ${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}時点` +
+    `確認: ${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}時点` +
     (ver ? ` / ${ver}` : "");
   render();
 }).catch((e) => {

@@ -13,7 +13,8 @@ export const store = {
   routes: null,          // {routes: {"S-01|S-02": {distM, durMin, poly}}} 事前計算済みルート（未取得時はnull）
   routeCache: new Map(), // "S-01|S-02" -> デコード済み{distM, durMin, coords}
   tieup: [],             // [{id:"T1", name, sponsor, lat, lng, approx}] タイアップステージ（出演情報なし）
-  updatedAt: "",
+  updatedAt: "",         // 公式データ自体の最終更新時刻（JSF_PERFORMANCES_UPDATED_AT）
+  checkedAt: "",         // うちのシステムが直近にチェックした時刻（差分の有無に関わらず定期更新）
   favorites: new Set(JSON.parse(localStorage.getItem(FAV_KEY) || "[]")),
   location: null,        // {lat, lng} 現在地（取得済みのとき）
   simNow: null,          // {date, min} 時刻シミュレーション（null=実時刻）
@@ -46,6 +47,14 @@ export async function loadData() {
     store.tieup = t?.stages || [];
   } catch {
     store.tieup = [];
+  }
+
+  // 自動更新ワークフローがまだ一度も走っていない環境では存在しないので、その場合は公式データの更新時刻で代用
+  try {
+    const c = await fetch("data/checked.json").then((r) => (r.ok ? r.json() : null));
+    store.checkedAt = c?.checkedAt || store.updatedAt;
+  } catch {
+    store.checkedAt = store.updatedAt;
   }
 }
 
