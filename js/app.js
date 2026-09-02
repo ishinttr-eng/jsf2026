@@ -689,6 +689,11 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   const b = e.target.closest(".tab-btn");
   if (!b) return;
   currentTab = b.dataset.tab;
+  if (currentTab === "my") {
+    // マイタイムテーブルを開くたびに、現在時刻（シミュレーション込み）の日付に合わせる
+    const info = nowInfo();
+    myState.day = DAYS.includes(info.date) ? info.date : DAYS[0];
+  }
   render();
 });
 
