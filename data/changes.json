@@ -1,3 +1,43 @@
 {
- "history": []
+ "history": [
+  {
+   "checkedAt": "2026-09-02T18:26:03Z",
+   "sourceUpdatedAt": "2026-09-02T18:22:24.386Z",
+   "items": [
+    {
+     "kind": "modified",
+     "date": "2026-09-12",
+     "venueId": "S-47",
+     "venueName": "仙台駅東口ペデストリアンデッキ",
+     "name": "Metronom（尚絅学院高等学校 軽音楽部）",
+     "field": "genre",
+     "fieldLabel": "ジャンル",
+     "old": "ポップス",
+     "new": "★特別企画"
+    },
+    {
+     "kind": "modified",
+     "date": "2026-09-12",
+     "venueId": "S-47",
+     "venueName": "仙台駅東口ペデストリアンデッキ",
+     "name": "かなえっ子J2（宮城県気仙沼高等学校）",
+     "field": "genre",
+     "fieldLabel": "ジャンル",
+     "old": "ポップス",
+     "new": "★特別企画"
+    },
+    {
+     "kind": "modified",
+     "date": "2026-09-12",
+     "venueId": "S-47",
+     "venueName": "仙台駅東口ペデストリアンデッキ",
+     "name": "たまごころ。（仙台高等専門学校 名取キャンパス）",
+     "field": "genre",
+     "fieldLabel": "ジャンル",
+     "old": "ポップス",
+     "new": "★特別企画"
+    }
+   ]
+  }
+ ]
 }
