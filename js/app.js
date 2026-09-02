@@ -382,6 +382,15 @@ function tieupPopupHtml(t) {
   div.innerHTML = lines;
   const btns = document.createElement("div");
   btns.className = "popup-btns";
+  if (t.sourceUrl) {
+    const src = document.createElement("a");
+    src.className = "btn small";
+    src.textContent = "主催者発表を見る";
+    src.target = "_blank";
+    src.rel = "noopener";
+    src.href = t.sourceUrl;
+    btns.append(src);
+  }
   const go = document.createElement("a");
   go.className = "btn small go";
   go.textContent = "ここへ行く";

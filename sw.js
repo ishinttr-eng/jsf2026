@@ -1,6 +1,6 @@
 // JSF Navi 2026 Service Worker
 // VERSION を上げると全キャッシュが更新される（データ更新時はここを変える）
-const VERSION = "v13";
+const VERSION = "v14";
 const CACHE = `jsf-navi-${VERSION}`;
 
 const APP_SHELL = [
