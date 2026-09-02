@@ -106,18 +106,6 @@ def main():
     venue_list = sorted(venues.values(), key=lambda v: v["stageNo"])
     ids = [v["id"] for v in venue_list]
 
-    # 全会場ペアの徒歩時間（分）: 直線距離×補正係数を徒歩速度で割って切り上げ
-    matrix = []
-    for a in venue_list:
-        row = []
-        for b in venue_list:
-            if a["id"] == b["id"]:
-                row.append(0)
-            else:
-                d = haversine_m(a["lat"], a["lng"], b["lat"], b["lng"]) * DETOUR_FACTOR
-                row.append(max(1, math.ceil(d / WALK_SPEED_M_PER_MIN)))
-        matrix.append(row)
-
     OUT.mkdir(exist_ok=True)
     (OUT / "venues.json").write_text(
         json.dumps({"updatedAt": updated_at, "venues": venue_list}, ensure_ascii=False, indent=1),
@@ -125,11 +113,35 @@ def main():
     (OUT / "performances.json").write_text(
         json.dumps({"updatedAt": updated_at, "performances": performances}, ensure_ascii=False, indent=1),
         encoding="utf-8")
-    (OUT / "walktimes.json").write_text(
-        json.dumps({"ids": ids, "minutes": matrix,
-                    "speedMPerMin": WALK_SPEED_M_PER_MIN, "detourFactor": DETOUR_FACTOR},
-                   ensure_ascii=False),
-        encoding="utf-8")
+
+    # walktimes.json は tools/build_routes.py が実測（OSRM）の所要時間で上書き済みのことがあるため、
+    # 既にそちらのソースが入っている場合は再生成せず保持する（出演者データ更新のたびに
+    # 直線距離の概算へ後退してしまうのを防ぐ）
+    walktimes_path = OUT / "walktimes.json"
+    existing_source = ""
+    if walktimes_path.exists():
+        try:
+            existing_source = json.loads(walktimes_path.read_text(encoding="utf-8")).get("source", "")
+        except json.JSONDecodeError:
+            pass
+    if "OSRM" in existing_source:
+        print("walktimes.json は実測ルート由来のため再生成をスキップしました")
+    else:
+        matrix = []
+        for a in venue_list:
+            row = []
+            for b in venue_list:
+                if a["id"] == b["id"]:
+                    row.append(0)
+                else:
+                    d = haversine_m(a["lat"], a["lng"], b["lat"], b["lng"]) * DETOUR_FACTOR
+                    row.append(max(1, math.ceil(d / WALK_SPEED_M_PER_MIN)))
+            matrix.append(row)
+        walktimes_path.write_text(
+            json.dumps({"ids": ids, "minutes": matrix,
+                        "speedMPerMin": WALK_SPEED_M_PER_MIN, "detourFactor": DETOUR_FACTOR},
+                       ensure_ascii=False),
+            encoding="utf-8")
 
     print(f"venues: {len(venue_list)}, performances: {len(performances)}, updatedAt: {updated_at}")
 
