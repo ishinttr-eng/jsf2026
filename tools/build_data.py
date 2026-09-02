@@ -32,6 +32,86 @@ DATE_MAP = {"9/12(土)": "2026-09-12", "9/13(日)": "2026-09-13"}
 WALK_SPEED_M_PER_MIN = 80   # 徒歩速度の目安
 DETOUR_FACTOR = 1.3          # 直線距離→道のり補正係数
 
+# 出演者変更の比較対象フィールド（kana・intro・awardEntry・order等はノイズになるため対象外）
+COMPARE_FIELDS = ["name", "venueId", "start", "end", "genre"]
+FIELD_LABEL = {"name": "出演者名", "venueId": "会場", "start": "開始時刻", "end": "終了時刻", "genre": "ジャンル"}
+CHANGES_HISTORY_LIMIT = 20
+
+
+def load_old_performances(out_dir):
+    """上書きする前の performances.json を読み、id+date をキーにした辞書にする"""
+    p = out_dir / "performances.json"
+    if not p.exists():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    return {f"{x['id']}__{x['date']}": x for x in data.get("performances", [])}
+
+
+def diff_performances(old_map, new_list, venue_name_by_id):
+    """新旧のperformancesを比較し、出演者の交代・追加・削除・変更を検出する"""
+    new_map = {f"{x['id']}__{x['date']}": x for x in new_list}
+    added_keys = set(new_map) - set(old_map)
+    removed_keys = set(old_map) - set(new_map)
+    common_keys = set(new_map) & set(old_map)
+
+    def venue_name(vid):
+        return venue_name_by_id.get(vid, vid)
+
+    items = []
+    for k in common_keys:
+        old, new = old_map[k], new_map[k]
+        for f in COMPARE_FIELDS:
+            if old.get(f) != new.get(f):
+                items.append({
+                    "kind": "modified", "date": new["date"], "venueId": new["venueId"],
+                    "venueName": venue_name(new["venueId"]), "name": new["name"],
+                    "field": f, "fieldLabel": FIELD_LABEL[f],
+                    "old": old.get(f), "new": new.get(f),
+                })
+
+    # 同じ枠（会場・日付・開始時刻）での追加＋削除は「出演者交代」としてまとめる
+    def slot(x):
+        return (x["venueId"], x["date"], x["start"])
+
+    added_by_slot, removed_by_slot = {}, {}
+    for k in added_keys:
+        added_by_slot.setdefault(slot(new_map[k]), []).append(k)
+    for k in removed_keys:
+        removed_by_slot.setdefault(slot(old_map[k]), []).append(k)
+
+    swapped_added, swapped_removed = set(), set()
+    for s, add_ks in added_by_slot.items():
+        for a_k, r_k in zip(add_ks, removed_by_slot.get(s, [])):
+            new, old = new_map[a_k], old_map[r_k]
+            items.append({
+                "kind": "swap", "date": new["date"], "venueId": new["venueId"],
+                "venueName": venue_name(new["venueId"]), "start": new["start"], "end": new["end"],
+                "oldName": old["name"], "newName": new["name"],
+            })
+            swapped_added.add(a_k)
+            swapped_removed.add(r_k)
+
+    for k in added_keys - swapped_added:
+        x = new_map[k]
+        items.append({
+            "kind": "added", "date": x["date"], "venueId": x["venueId"],
+            "venueName": venue_name(x["venueId"]), "name": x["name"],
+            "start": x["start"], "end": x["end"],
+        })
+    for k in removed_keys - swapped_removed:
+        x = old_map[k]
+        items.append({
+            "kind": "removed", "date": x["date"], "venueId": x["venueId"],
+            "venueName": venue_name(x["venueId"]), "name": x["name"],
+            "start": x["start"], "end": x["end"],
+        })
+
+    items.sort(key=lambda it: (it["date"], it.get("start") or ""))
+    return items
+
 
 def haversine_m(lat1, lng1, lat2, lng2):
     r = 6371000.0
@@ -60,6 +140,8 @@ def main():
         raise SystemExit("performers-data.js の形式が想定と異なります")
     raw = json.loads(m.group(1))
     updated_at = m.group(2)
+
+    old_map = load_old_performances(OUT)  # 上書きする前に旧データを読んでおく
 
     venues = {}
     performances = []
@@ -106,6 +188,9 @@ def main():
 
     venue_list = sorted(venues.values(), key=lambda v: v["stageNo"])
     ids = [v["id"] for v in venue_list]
+    venue_name_by_id = {v["id"]: v["name"] for v in venue_list}
+
+    diff_items = diff_performances(old_map, performances, venue_name_by_id)
 
     OUT.mkdir(exist_ok=True)
     (OUT / "venues.json").write_text(
@@ -150,7 +235,21 @@ def main():
     (OUT / "checked.json").write_text(
         json.dumps({"checkedAt": checked_at}, ensure_ascii=False), encoding="utf-8")
 
-    print(f"venues: {len(venue_list)}, performances: {len(performances)}, updatedAt: {updated_at}, checkedAt: {checked_at}")
+    # 出演者の交代・追加・削除・変更を検出したときだけ履歴に追記する（差分なしのチェックは記録しない）
+    changes_path = OUT / "changes.json"
+    history = []
+    if changes_path.exists():
+        try:
+            history = json.loads(changes_path.read_text(encoding="utf-8")).get("history", [])
+        except json.JSONDecodeError:
+            history = []
+    if diff_items:
+        history.append({"checkedAt": checked_at, "sourceUpdatedAt": updated_at, "items": diff_items})
+        history = history[-CHANGES_HISTORY_LIMIT:]
+    changes_path.write_text(json.dumps({"history": history}, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    print(f"venues: {len(venue_list)}, performances: {len(performances)}, updatedAt: {updated_at}, "
+          f"checkedAt: {checked_at}, changes: {len(diff_items)}")
 
 
 if __name__ == "__main__":

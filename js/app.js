@@ -9,8 +9,9 @@ let map = null, markers = new Map(), meMarker = null, routeLayer = null;
 let ttState = { day: "", q: "", venue: "", genre: "" }; // day: "" は「すべての日程」
 let myState = { day: DAYS[0] }; // マイタイムテーブルの日付絞り込み（すべては無し、常にどちらかの日）
 let expandedVenues = new Set(); // 出演者タブで開いている会場の<details>を再描画後も維持するため
-// detail: {kind:"venue", venueId, day, from} | {kind:"artist", perf} | null
+// detail: {kind:"venue", venueId, day, from} | {kind:"artist", perf} | {kind:"changes"} | null
 let detail = null;
+const CHANGES_SEEN_KEY = "jsf.changesSeenAt";
 // activeRoute: {fromId, toId, fromLabel, toLabel} | {fromHere: true, toId, toLabel} | {myRoute: true} | null
 let activeRoute = { myRoute: true }; // マップを開いたときのデフォルトはマイルートモード
 
@@ -560,6 +561,13 @@ function openArtist(perf) {
   renderDetail();
 }
 
+function openChanges() {
+  localStorage.setItem(CHANGES_SEEN_KEY, store.changes[0]?.checkedAt || "");
+  detail = { kind: "changes" };
+  renderDetail();
+  updateChangesBadge();
+}
+
 function closeDetail() {
   detail = null;
   renderDetail();
@@ -569,8 +577,58 @@ function closeDetail() {
 function renderDetail() {
   document.getElementById("modal")?.remove();
   if (!detail) return;
-  const modal = detail.kind === "venue" ? venueModal(detail) : artistModal(detail.perf);
+  const modal = detail.kind === "venue" ? venueModal(detail)
+    : detail.kind === "artist" ? artistModal(detail.perf)
+    : changesModal();
   document.body.append(modal);
+}
+
+function changesModal() {
+  const body = store.changes.length
+    ? store.changes.map((entry) => el("div", { class: "changes-entry" },
+        el("div", { class: "changes-entry-date" }, `確認: ${fmtDateTime(entry.checkedAt)}`),
+        entry.items.map((it) => el("div", { class: `change-item ${it.kind}` }, changeItemText(it)))))
+    : el("p", { class: "note" }, "出演者変更の履歴はまだありません。");
+
+  return el("div", { id: "modal", onclick: (e) => { if (e.target.id === "modal") closeDetail(); } },
+    el("div", { class: "modal-body" },
+      el("div", { class: "modal-head" },
+        el("h2", {}, "📢 出演者変更履歴"),
+        el("button", { class: "close", onclick: closeDetail }, "✕")),
+      el("div", { class: "modal-list" }, body)));
+}
+
+function changeItemText(it) {
+  const venueLine = el("span", { class: "venue" }, `${DAY_LABELS[it.date] || it.date} ${it.venueName}`);
+  if (it.kind === "swap") {
+    return [venueLine, `${it.start}–${it.end} 　${it.oldName} → ${it.newName}`];
+  }
+  if (it.kind === "added") {
+    return [venueLine, `＋ ${it.start}–${it.end} ${it.name} が追加`];
+  }
+  if (it.kind === "removed") {
+    return [venueLine, `－ ${it.start}–${it.end} ${it.name} が削除`];
+  }
+  // modified
+  return [venueLine, `${it.name}　${it.fieldLabel}: ${it.old || "（空）"} → ${it.new || "（空）"}`];
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+// ヘッダーの変更通知バッジ（未読があれば表示、クリックで履歴モーダルを開く）
+function updateChangesBadge() {
+  const badge = document.getElementById("changes-badge");
+  if (!badge) return;
+  const latest = store.changes[0];
+  const seenAt = localStorage.getItem(CHANGES_SEEN_KEY);
+  const unseen = latest && latest.checkedAt !== seenAt;
+  badge.hidden = !unseen;
+  if (unseen) badge.textContent = `📢 変更あり（${latest.items.length}）`;
+  badge.onclick = openChanges;
 }
 
 function venueModal(d) {
@@ -715,6 +773,7 @@ loadData().then(async () => {
   document.getElementById("updated").textContent =
     `確認: ${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}時点` +
     (ver ? ` / ${ver}` : "");
+  updateChangesBadge();
   render();
 }).catch((e) => {
   main.textContent = `データの読み込みに失敗しました: ${e.message}`;

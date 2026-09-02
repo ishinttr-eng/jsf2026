@@ -36,7 +36,19 @@ body {
 }
 #header h1 { margin: 0; font-size: 1.15rem; letter-spacing: .02em; }
 #header h1 span { color: var(--brass); }
-#updated { font-size: .68rem; color: var(--muted); margin-left: auto; }
+.header-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+#updated { font-size: .68rem; color: var(--muted); }
+.changes-badge {
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--ng);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
 
 #main { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
 .view { padding: 12px 12px 20px; max-width: 640px; margin: 0 auto; }
@@ -368,3 +380,20 @@ summary {
 .artist-when { font-size: .85rem; color: var(--brass); margin-top: 4px; }
 .intro { font-size: .85rem; line-height: 1.7; color: var(--text); white-space: pre-wrap; margin: 12px 0; }
 .fav.big { font-size: 1.5rem; }
+
+.changes-entry { margin: 14px 0; }
+.changes-entry-date { font-size: .78rem; color: var(--muted); margin-bottom: 6px; }
+.change-item {
+  font-size: .85rem;
+  line-height: 1.6;
+  padding: 8px 10px;
+  margin: 6px 0;
+  background: var(--panel);
+  border-radius: 8px;
+  border-left: 3px solid var(--panel2);
+}
+.change-item.swap { border-left-color: var(--brass); }
+.change-item.added { border-left-color: var(--ok); }
+.change-item.removed { border-left-color: var(--ng); }
+.change-item.modified { border-left-color: var(--accent); }
+.change-item .venue { display: block; font-size: .72rem; color: var(--muted); margin-bottom: 2px; }

@@ -15,6 +15,7 @@ export const store = {
   tieup: [],             // [{id:"T1", name, sponsor, lat, lng, approx}] タイアップステージ（出演情報なし）
   updatedAt: "",         // 公式データ自体の最終更新時刻（JSF_PERFORMANCES_UPDATED_AT）
   checkedAt: "",         // うちのシステムが直近にチェックした時刻（差分の有無に関わらず定期更新）
+  changes: [],           // [{checkedAt, sourceUpdatedAt, items:[...]}] 出演者変更の検出履歴（新しい順）
   favorites: new Set(JSON.parse(localStorage.getItem(FAV_KEY) || "[]")),
   location: null,        // {lat, lng} 現在地（取得済みのとき）
   simNow: null,          // {date, min} 時刻シミュレーション（null=実時刻）
@@ -55,6 +56,13 @@ export async function loadData() {
     store.checkedAt = c?.checkedAt || store.updatedAt;
   } catch {
     store.checkedAt = store.updatedAt;
+  }
+
+  try {
+    const c = await fetch("data/changes.json").then((r) => (r.ok ? r.json() : null));
+    store.changes = (c?.history || []).slice().reverse(); // 新しい順
+  } catch {
+    store.changes = [];
   }
 }
 
