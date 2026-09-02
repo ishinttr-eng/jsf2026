@@ -29,6 +29,23 @@ function showRouteFromHere(toId) {
   render();
 }
 
+// 現在時刻（シミュレーション込み）をもとに、マイタイムテーブル上で「今から向かうべき次のお気に入り」を求める
+function computeMyRouteNow() {
+  const info = nowInfo();
+  if (!DAYS.includes(info.date)) return { message: "開催日ではありません" };
+  const todays = store.performances
+    .filter((p) => p.date === info.date && store.favorites.has(perfKey(p)))
+    .sort((a, b) => a.startMin - b.startMin);
+  if (!todays.length) return { message: "本日のお気に入りが登録されていません" };
+  const next = todays.find((p) => p.startMin > info.min);
+  const prevList = todays.filter((p) => p.startMin <= info.min);
+  const prev = prevList.length ? prevList[prevList.length - 1] : null;
+  if (!next) return { message: "本日のお気に入り予定はすべて終了しました" };
+  return prev
+    ? { fromId: prev.venueId, toId: next.venueId, toPerf: next }
+    : { fromHere: true, toId: next.venueId, toPerf: next };
+}
+
 // ---------- 共通部品 ----------
 
 function venueLabel(v) {
@@ -283,6 +300,22 @@ function initMap(mapDiv, wrap) {
   };
   locBtn.addTo(map);
 
+  const myRouteBtn = L.control({ position: "topleft" });
+  myRouteBtn.onAdd = () => {
+    const b = L.DomUtil.create("button", "map-loc-btn map-mode-btn");
+    b.textContent = "🕒";
+    b.title = "マイルート（現在時刻に応じた次の移動先を表示）";
+    b.classList.toggle("active", !!activeRoute?.myRoute);
+    L.DomEvent.on(b, "click", (e) => {
+      L.DomEvent.stop(e);
+      activeRoute = activeRoute?.myRoute ? null : { myRoute: true };
+      b.classList.toggle("active", !!activeRoute?.myRoute);
+      drawActiveRoute(wrap);
+    });
+    return b;
+  };
+  myRouteBtn.addTo(map);
+
   drawActiveRoute(wrap);
 }
 
@@ -292,22 +325,50 @@ function drawActiveRoute(wrap) {
   document.getElementById("route-banner")?.remove();
   if (!activeRoute) return;
 
-  const to = store.venueById.get(activeRoute.toId);
+  const closeBtn = el("button", {
+    class: "btn small close-route",
+    onclick: () => { activeRoute = null; render(); },
+  }, "✕");
+
+  // マイルートモード: 表示のたびに現在時刻から改めて「次の移動先」を計算し直す
+  let spec = activeRoute;
+  if (activeRoute.myRoute) {
+    const my = computeMyRouteNow();
+    if (my.message) {
+      wrap.append(el("div", { id: "route-banner", class: "route-banner" },
+        el("div", { class: "route-banner-text" },
+          el("div", { class: "route-banner-title" }, "🕒 マイルート"),
+          el("div", { class: "route-banner-sub" }, my.message)),
+        el("div", { class: "route-banner-btns" }, closeBtn)));
+      return;
+    }
+    spec = {
+      myRoute: true,
+      fromHere: !!my.fromHere,
+      fromId: my.fromId,
+      toId: my.toId,
+      fromLabel: my.fromId ? shortVenueName(store.venueById.get(my.fromId)) : null,
+      toLabel: shortVenueName(store.venueById.get(my.toId)),
+      nextPerf: my.toPerf,
+    };
+  }
+
+  const to = store.venueById.get(spec.toId);
   let coords = null, from = null, precomputed = null;
 
-  if (activeRoute.fromHere) {
+  if (spec.fromHere) {
     if (store.location) {
       from = store.location;
       coords = [[store.location.lat, store.location.lng], [to.lat, to.lng]];
     }
   } else {
-    from = store.venueById.get(activeRoute.fromId);
-    precomputed = getRoute(activeRoute.fromId, activeRoute.toId);
+    from = store.venueById.get(spec.fromId);
+    precomputed = getRoute(spec.fromId, spec.toId);
     coords = precomputed ? precomputed.coords : [[from.lat, from.lng], [to.lat, to.lng]];
   }
 
   const isApprox = !precomputed;
-  const fromLabel = activeRoute.fromHere ? "現在地" : activeRoute.fromLabel;
+  const fromLabel = spec.fromHere ? "現在地" : spec.fromLabel;
 
   let subText;
   if (!coords) {
@@ -316,6 +377,9 @@ function drawActiveRoute(wrap) {
     subText = `🚶 徒歩約${precomputed.durMin}分（約${precomputed.distM}m）`;
   } else {
     subText = `📏 直線距離の目安 約${Math.round(haversineM(coords[0][0], coords[0][1], coords[1][0], coords[1][1]))}m（実測ルート未取得）`;
+  }
+  if (spec.myRoute && spec.nextPerf) {
+    subText += ` ／ 次: ${spec.nextPerf.start} ${spec.nextPerf.name}`;
   }
 
   if (coords) {
@@ -331,14 +395,11 @@ function drawActiveRoute(wrap) {
   const gUrl = gmapsWalkUrl(to.lat, to.lng, from?.lat, from?.lng);
   wrap.append(el("div", { id: "route-banner", class: "route-banner" },
     el("div", { class: "route-banner-text" },
-      el("div", { class: "route-banner-title" }, `${fromLabel} → ${activeRoute.toLabel}`),
+      el("div", { class: "route-banner-title" }, `${spec.myRoute ? "🕒 " : ""}${fromLabel} → ${spec.toLabel}`),
       el("div", { class: "route-banner-sub" }, subText)),
     el("div", { class: "route-banner-btns" },
       el("a", { class: "btn small go", target: "_blank", rel: "noopener", href: gUrl }, "Googleで開く"),
-      el("button", {
-        class: "btn small close-route",
-        onclick: () => { activeRoute = null; render(); },
-      }, "✕"))));
+      closeBtn)));
 }
 
 function popupHtml(v) {
@@ -411,6 +472,14 @@ function viewMy() {
     wrap.append(el("p", { class: "note" }, "☆をタップしてお気に入り登録すると、ここに自分のタイムテーブルができます。"));
     return wrap;
   }
+  // 現在時刻に該当する（演奏中、なければ次に始まる）お気に入りへ自動スクロールするための目印
+  const info = nowInfo();
+  let scrollTarget = null;
+  if (DAYS.includes(info.date)) {
+    const todays = favs.filter((p) => p.date === info.date).sort((a, b) => a.startMin - b.startMin);
+    scrollTarget = todays.find((p) => p.startMin <= info.min && info.min < p.endMin)
+      || todays.find((p) => p.startMin > info.min);
+  }
   for (const day of DAYS) {
     const list = favs.filter((p) => p.date === day);
     if (!list.length) continue;
@@ -436,7 +505,9 @@ function viewMy() {
             `${ok ? "🚶" : "⚠️"} 移動 約${need}分（空き${gap}分）${ok ? "" : " — 間に合わない可能性"}`));
         }
       }
-      wrap.append(perfCard(p, { walkMin: walkFromHere(p.venueId) }));
+      const card = perfCard(p, { walkMin: walkFromHere(p.venueId) });
+      if (scrollTarget && p === scrollTarget) card.dataset.scrollTarget = "true";
+      wrap.append(card);
       prev = p;
     }
   }
@@ -576,6 +647,7 @@ function render() {
   }
   // DOMへの接続後、同期的に初期化する（rAFに任せるとバックグラウンドタブで遅延・スキップされるため）
   if (currentTab === "map") initMap(view.querySelector("#map"), view);
+  if (currentTab === "my") view.querySelector("[data-scroll-target]")?.scrollIntoView({ block: "center" });
   renderDetail(); // detail が null のときは既存モーダルの除去だけ行う
 }
 

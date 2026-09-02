@@ -258,6 +258,8 @@ summary {
   font-size: 1rem;
   cursor: pointer;
 }
+.map-mode-btn { margin-top: 6px; }
+.map-mode-btn.active { background: var(--brass); border-color: rgba(0,0,0,.4); }
 .leaflet-tooltip {
   background: var(--panel);
   color: var(--text);
