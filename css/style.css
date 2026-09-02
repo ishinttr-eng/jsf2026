@@ -70,6 +70,16 @@ button.move, button.warn {
 }
 .card:active { border-color: var(--accent); }
 .card.playing { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass); }
+.card.next-up { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.flag {
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-right: 2px;
+}
+.flag.playing { background: var(--brass); color: #2b1f05; }
+.flag.next { background: var(--accent); color: #fff; }
 .card-head { display: flex; align-items: center; gap: 8px; }
 .time { font-weight: 700; color: var(--brass); font-variant-numeric: tabular-nums; }
 .day-tag { font-size: .72rem; color: var(--muted); }
@@ -120,6 +130,30 @@ button.move, button.warn {
 }
 .link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: .82rem; text-decoration: underline; padding: 0; }
 .sim-input { flex: 0 0 auto; width: auto; padding: 4px 6px; font-size: .78rem; }
+
+.sim-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: .78rem;
+  color: var(--muted);
+  background: var(--panel2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0 0 10px;
+}
+.sim-badge-map {
+  position: absolute;
+  top: 10px;
+  left: 56px;
+  right: 10px;
+  z-index: 900;
+  margin: 0;
+  background: var(--panel);
+  border: 1px solid var(--panel2);
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
 
 .btn {
   display: inline-block;
@@ -193,15 +227,22 @@ summary {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 8px 0 6px;
+  padding: 7px 0 6px;
   background: none;
   border: none;
+  border-top: 3px solid transparent;
   color: var(--muted);
   font-size: 1.05rem;
   cursor: pointer;
+  transition: color .15s, background-color .15s, border-color .15s;
 }
 .tab-btn span { font-size: .65rem; }
-.tab-btn.active { color: var(--brass); }
+.tab-btn.active {
+  color: var(--brass);
+  background: rgba(232, 182, 76, .14);
+  border-top-color: var(--brass);
+}
+.tab-btn.active span { font-weight: 700; }
 
 #foot {
   font-size: .62rem;

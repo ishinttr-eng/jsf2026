@@ -7,6 +7,8 @@ const main = document.getElementById("main");
 let currentTab = "now";
 let map = null, markers = new Map(), meMarker = null, routeLayer = null;
 let ttState = { day: "", q: "", venue: "", genre: "" }; // day: "" は「すべての日程」
+let myState = { day: DAYS[0] }; // マイタイムテーブルの日付絞り込み（すべては無し、常にどちらかの日）
+let expandedVenues = new Set(); // 出演者タブで開いている会場の<details>を再描画後も維持するため
 // detail: {kind:"venue", venueId, day, from} | {kind:"artist", perf} | null
 let detail = null;
 // activeRoute: {fromId, toId, fromLabel, toLabel} | {fromHere: true, toId, toLabel} | null
@@ -56,6 +58,14 @@ function shortVenueName(v) {
   return v.name.replace(/\s*supported by.*$/i, "");
 }
 
+// NOW ON AIRで設定した時刻シミュレーション中であることを他の画面でも分かるように表示するバッジ
+function simBadge() {
+  if (!store.simNow) return null;
+  return el("div", { class: "sim-badge" },
+    el("span", {}, `🕐 ${DAY_LABELS[store.simNow.date]} ${fmtMin(store.simNow.min)}（シミュレーション中）`),
+    el("button", { class: "link", onclick: () => { store.simNow = null; render(); } }, "実時刻に戻す"));
+}
+
 function favButton(p) {
   const active = store.favorites.has(perfKey(p));
   return el("button", {
@@ -83,8 +93,11 @@ function perfCard(p, opts = {}) {
       badges.push(el("span", { class: `badge ${ok ? "ok" : "ng"}` }, ok ? "間に合う" : "間に合わない"));
     }
   }
-  return el("div", { class: "card", onclick: () => openArtist(p) },
+  const highlightClass = opts.highlight === "playing" ? " playing" : opts.highlight === "next" ? " next-up" : "";
+  return el("div", { class: `card${highlightClass}`, onclick: () => openArtist(p) },
     el("div", { class: "card-head" },
+      opts.highlight ? el("span", { class: `flag ${opts.highlight}` },
+        opts.highlight === "playing" ? "🔴 演奏中" : "▶ 次はここ") : null,
       el("span", { class: "time" }, `${p.start}–${p.end}`),
       opts.dayLabel ? el("span", { class: "day-tag" }, DAY_LABELS[p.date]) : null,
       favButton(p)),
@@ -227,9 +240,15 @@ function renderTTList(box) {
     for (const v of store.venues) {
       const ps = list.filter((p) => p.venueId === v.id);
       if (!ps.length) continue;
-      const det = el("details", {},
+      const det = el("details", {
+        ontoggle: (e) => {
+          if (e.target.open) expandedVenues.add(v.id);
+          else expandedVenues.delete(v.id);
+        },
+      },
         el("summary", {}, `${venueLabel(v)}（${ps.length}）`),
         ps.map((p) => perfCard(p, { dayLabel: crossDate })));
+      det.open = expandedVenues.has(v.id);
       box.append(det);
     }
   }
@@ -241,6 +260,8 @@ function viewMap() {
   const wrap = el("div", { class: "view map-view" });
   const mapDiv = el("div", { id: "map" });
   wrap.append(mapDiv);
+  const badge = simBadge();
+  if (badge) { badge.classList.add("sim-badge-map"); wrap.append(badge); }
   return wrap;
 }
 
@@ -472,15 +493,27 @@ function viewMy() {
     wrap.append(el("p", { class: "note" }, "☆をタップしてお気に入り登録すると、ここに自分のタイムテーブルができます。"));
     return wrap;
   }
-  // 現在時刻に該当する（演奏中、なければ次に始まる）お気に入りへ自動スクロールするための目印
+
+  const badge = simBadge();
+  if (badge) wrap.append(badge);
+
+  const dayTabs = el("div", { class: "day-tabs" },
+    DAYS.map((d) => el("button", {
+      class: `day-tab ${myState.day === d ? "active" : ""}`,
+      onclick: () => { myState.day = d; render(); },
+    }, DAY_LABELS[d])));
+  wrap.append(dayTabs);
+
+  // 現在時刻に該当する（演奏中、なければ次に始まる）お気に入りへ自動スクロール＋強調表示するための目印
   const info = nowInfo();
-  let scrollTarget = null;
+  let scrollTarget = null, scrollTargetKind = null;
   if (DAYS.includes(info.date)) {
     const todays = favs.filter((p) => p.date === info.date).sort((a, b) => a.startMin - b.startMin);
-    scrollTarget = todays.find((p) => p.startMin <= info.min && info.min < p.endMin)
-      || todays.find((p) => p.startMin > info.min);
+    const playing = todays.find((p) => p.startMin <= info.min && info.min < p.endMin);
+    scrollTarget = playing || todays.find((p) => p.startMin > info.min);
+    scrollTargetKind = playing ? "playing" : "next";
   }
-  for (const day of DAYS) {
+  for (const day of [myState.day]) {
     const list = favs.filter((p) => p.date === day);
     if (!list.length) continue;
     wrap.append(el("h2", {}, DAY_LABELS[day]));
@@ -505,8 +538,9 @@ function viewMy() {
             `${ok ? "🚶" : "⚠️"} 移動 約${need}分（空き${gap}分）${ok ? "" : " — 間に合わない可能性"}`));
         }
       }
-      const card = perfCard(p, { walkMin: walkFromHere(p.venueId) });
-      if (scrollTarget && p === scrollTarget) card.dataset.scrollTarget = "true";
+      const isTarget = scrollTarget && p === scrollTarget;
+      const card = perfCard(p, { walkMin: walkFromHere(p.venueId), highlight: isTarget ? scrollTargetKind : null });
+      if (isTarget) card.dataset.scrollTarget = "true";
       wrap.append(card);
       prev = p;
     }
