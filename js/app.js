@@ -11,8 +11,8 @@ let myState = { day: DAYS[0] }; // マイタイムテーブルの日付絞り込
 let expandedVenues = new Set(); // 出演者タブで開いている会場の<details>を再描画後も維持するため
 // detail: {kind:"venue", venueId, day, from} | {kind:"artist", perf} | null
 let detail = null;
-// activeRoute: {fromId, toId, fromLabel, toLabel} | {fromHere: true, toId, toLabel} | null
-let activeRoute = null;
+// activeRoute: {fromId, toId, fromLabel, toLabel} | {fromHere: true, toId, toLabel} | {myRoute: true} | null
+let activeRoute = { myRoute: true }; // マップを開いたときのデフォルトはマイルートモード
 
 // 会場詳細・マイタイムテーブルなどから、地図タブに切り替えてルートを表示する
 function showRouteBetween(fromId, toId) {
