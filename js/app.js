@@ -697,10 +697,24 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   render();
 });
 
-loadData().then(() => {
+// sw.jsのCACHE名（jsf-navi-${VERSION}）から現在キャッシュされているバージョンを読み取る。
+// sw.js側のVERSIONと二重管理にならないよう、値そのものはここでは持たない
+async function currentSwVersion() {
+  if (!("caches" in window)) return null;
+  try {
+    const key = (await caches.keys()).find((k) => k.startsWith("jsf-navi-"));
+    return key ? key.slice("jsf-navi-".length) : null;
+  } catch {
+    return null;
+  }
+}
+
+loadData().then(async () => {
   const d = new Date(store.updatedAt);
+  const ver = await currentSwVersion();
   document.getElementById("updated").textContent =
-    `データ: ${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}時点`;
+    `データ: ${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}時点` +
+    (ver ? ` / ${ver}` : "");
   render();
 }).catch((e) => {
   main.textContent = `データの読み込みに失敗しました: ${e.message}`;
