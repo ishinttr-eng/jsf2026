@@ -59,7 +59,7 @@ function shortVenueName(v) {
   return v.name.replace(/\s*supported by.*$/i, "");
 }
 
-// NOW ON AIRで設定した時刻シミュレーション中であることを他の画面でも分かるように表示するバッジ
+// 「演奏中」タブで設定した時刻シミュレーション中であることを他の画面でも分かるように表示するバッジ
 function simBadge() {
   if (!store.simNow) return null;
   return el("div", { class: "sim-badge" },
