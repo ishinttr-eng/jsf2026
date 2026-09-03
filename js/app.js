@@ -583,10 +583,16 @@ function renderDetail() {
   document.body.append(modal);
 }
 
+const OFFICIAL_PERFORMERS_URL = "https://www.j-streetjazz.com/entry/performers2026/";
+
 function changesModal() {
   const body = store.changes.length
     ? store.changes.map((entry) => el("div", { class: "changes-entry" },
-        el("div", { class: "changes-entry-date" }, `確認: ${fmtDateTime(entry.checkedAt)}`),
+        el("div", { class: "changes-entry-head" },
+          el("span", { class: "changes-entry-date" }, `確認: ${fmtDateTime(entry.checkedAt)}`),
+          el("a", {
+            class: "changes-entry-link", href: OFFICIAL_PERFORMERS_URL, target: "_blank", rel: "noopener",
+          }, "公式サイトで確認 ↗")),
         entry.items.map((it) => el("div", { class: `change-item ${it.kind}` }, changeItemText(it)))))
     : el("p", { class: "note" }, "出演者変更の履歴はまだありません。");
 

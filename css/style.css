@@ -382,7 +382,15 @@ summary {
 .fav.big { font-size: 1.5rem; }
 
 .changes-entry { margin: 14px 0; }
-.changes-entry-date { font-size: .78rem; color: var(--muted); margin-bottom: 6px; }
+.changes-entry-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.changes-entry-date { font-size: .78rem; color: var(--muted); }
+.changes-entry-link { font-size: .74rem; color: var(--accent); text-decoration: underline; white-space: nowrap; }
 .change-item {
   font-size: .85rem;
   line-height: 1.6;
