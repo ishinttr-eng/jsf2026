@@ -489,10 +489,13 @@ function drawMyRouteSegments(wrap, closeBtn) {
       if (focused) s.line.bringToFront();
     });
   };
+  const focusMap = (idx) => {
+    const s = segInfo[idx];
+    if (s.line) map.fitBounds(s.line.getBounds(), { padding: [56, 90] });
+    else if (routeLayer.getLayers().length) map.fitBounds(routeLayer.getBounds(), { padding: [48, 48] });
+  };
   applyHighlight(myRouteIndex);
-  // 視点は最初に全区間が収まるよう1回だけ合わせる。スワイプのたびにズームすると
-  // 他の（薄く表示している）区間が画面外に出てしまうため、以降は動かさない
-  if (routeLayer.getLayers().length) map.fitBounds(routeLayer.getBounds(), { padding: [48, 48] });
+  focusMap(myRouteIndex);
 
   const counter = el("span", { class: "myroute-counter" }, `${myRouteIndex + 1} / ${segments.length}`);
 
@@ -511,13 +514,17 @@ function drawMyRouteSegments(wrap, closeBtn) {
     carousel.scrollTo({ top: clamped * MYROUTE_CARD_H, behavior: "smooth" });
   };
 
+  let settleTimer = null;
   carousel.addEventListener("scroll", () => {
     const idx = Math.max(0, Math.min(segments.length - 1, Math.round(carousel.scrollTop / MYROUTE_CARD_H)));
     if (idx !== myRouteIndex) {
       myRouteIndex = idx;
-      applyHighlight(idx); // 地図の視点は動かさず、線の太さ・濃さだけ切り替える
+      applyHighlight(idx);
       counter.textContent = `${idx + 1} / ${segments.length}`;
     }
+    // 地図の視点合わせはスクロールが落ち着いてから（スワイプ中に何度も動くと酔うため）
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => focusMap(myRouteIndex), 150);
   });
 
   wrap.append(el("div", { id: "route-banner", class: "route-banner myroute-banner" },
