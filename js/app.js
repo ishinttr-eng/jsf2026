@@ -683,6 +683,39 @@ const SCHEDULE_PX_PER_MIN = 1.6;
 
 // マイタイムテーブルのスケジュール表モード: 縦軸=時刻の1本のタイムライン上に、
 // お気に入りを開始時刻・所要時間に応じたブロックとして配置する
+// 時間が重なる予定をグループ化し、各予定に列番号(col)を割り当てる。
+// 表示上の分割数(numCols)はグループ内の最大重なり数を3で頭打ちにし、
+// 4件目以降は列番号だけ増え続けるので横スクロールで見られるようになる
+function layoutScheduleColumns(list) {
+  const cols = [], clusterOf = [];
+  const activeEnd = []; // 列番号 -> 現在その列を占有している予定の終了時刻
+  let cluster = -1, clusterEnd = -Infinity;
+
+  list.forEach((p, i) => {
+    if (p.startMin >= clusterEnd) {
+      cluster++;
+      clusterEnd = p.endMin;
+      activeEnd.length = 0;
+    } else {
+      clusterEnd = Math.max(clusterEnd, p.endMin);
+    }
+    clusterOf[i] = cluster;
+    let col = 0;
+    while (activeEnd[col] != null && activeEnd[col] > p.startMin) col++;
+    cols[i] = col;
+    activeEnd[col] = p.endMin;
+  });
+
+  const clusterMaxCol = {};
+  list.forEach((_, i) => {
+    clusterMaxCol[clusterOf[i]] = Math.max(clusterMaxCol[clusterOf[i]] || 0, cols[i] + 1);
+  });
+
+  return list.map((p, i) => ({ p, col: cols[i], numCols: Math.min(clusterMaxCol[clusterOf[i]], 3) }));
+}
+
+const SCHEDULE_GUTTER = "44px"; // 時刻ラベル分の左余白
+
 function renderMySchedule(wrap, list, day) {
   const startMin = Math.min(SCHEDULE_START_MIN, list[0].startMin);
   const endMin = Math.max(SCHEDULE_END_MIN, list[list.length - 1].endMin);
@@ -695,7 +728,8 @@ function renderMySchedule(wrap, list, day) {
     const top = (h * 60 - startMin) * SCHEDULE_PX_PER_MIN;
     container.append(
       el("div", { class: "schedule-hour-line", style: `top:${top}px` }),
-      el("div", { class: "schedule-hour-label", style: `top:${top}px` }, `${h}:00`));
+      el("div", { class: "schedule-hour-row", style: `top:${top}px` },
+        el("span", { class: "schedule-hour-label" }, `${h}:00`)));
   }
 
   const info = nowInfo();
@@ -705,8 +739,9 @@ function renderMySchedule(wrap, list, day) {
     }));
   }
 
+  const laidOut = layoutScheduleColumns(list);
   let prev = null;
-  for (const p of list) {
+  for (const { p, col, numCols } of laidOut) {
     if (prev) {
       const need = walkBetween(prev.venueId, p.venueId);
       const gap = p.startMin - prev.endMin;
@@ -724,8 +759,13 @@ function renderMySchedule(wrap, list, day) {
     const v = store.venueById.get(p.venueId);
     const top = (p.startMin - startMin) * SCHEDULE_PX_PER_MIN;
     const blockH = Math.max(46, (p.endMin - p.startMin) * SCHEDULE_PX_PER_MIN);
+    // 列幅は「時刻ラベル分を引いた残り幅」を重なり数（最大3）で分割。4列目以降は
+    // 100%の外側に配置されるので、schedule-table-wrapの横スクロールで見られる
+    const left = `calc(${SCHEDULE_GUTTER} + (100% - ${SCHEDULE_GUTTER} - 4px) / ${numCols} * ${col} + 2px)`;
+    const width = `calc((100% - ${SCHEDULE_GUTTER} - 4px) / ${numCols} - 4px)`;
     container.append(el("div", {
-      class: "schedule-block", style: `top:${top}px; height:${blockH}px`, onclick: () => openArtist(p),
+      class: "schedule-block", style: `top:${top}px; height:${blockH}px; left:${left}; width:${width};`,
+      onclick: () => openArtist(p),
     },
       el("div", { class: "schedule-block-time" }, `${p.start}–${p.end}`),
       el("div", { class: "schedule-block-name" }, p.name),

@@ -206,20 +206,25 @@ button.move, button.warn {
 .mode-tabs { margin-top: -2px; }
 .mode-tabs .day-tab { font-size: .8rem; padding: 6px; }
 
-/* マイタイムテーブルのスケジュール表モード: 縦軸=時刻の1本のタイムライン */
-.schedule-table-wrap { margin: 8px 0 4px; overflow-x: hidden; }
+/* マイタイムテーブルのスケジュール表モード: 縦軸=時刻の1本のタイムライン。
+   時間が重なる予定は最大3列まで横に並べ、4件目以降は横スクロールで見る */
+.schedule-table-wrap { margin: 8px 0 4px; overflow-x: auto; overflow-y: visible; }
 .schedule-table { position: relative; }
-.schedule-hour-line { position: absolute; left: 40px; right: 0; border-top: 1px solid var(--panel2); }
+.schedule-hour-line { position: absolute; left: 44px; right: 0; border-top: 1px solid var(--panel2); }
+.schedule-hour-row { position: absolute; left: 0; right: 0; height: 0; pointer-events: none; }
 .schedule-hour-label {
-  position: absolute;
+  position: sticky;
   left: 0;
-  width: 34px;
+  display: inline-block;
+  width: 38px;
   transform: translateY(-50%);
   text-align: right;
   font-size: .66rem;
   color: var(--muted);
+  background: var(--bg);
+  padding-right: 2px;
 }
-.schedule-now-line { position: absolute; left: 40px; right: 0; height: 2px; background: var(--ng); z-index: 3; }
+.schedule-now-line { position: absolute; left: 44px; right: 0; height: 2px; background: var(--ng); z-index: 3; }
 .schedule-now-line::before {
   content: "";
   position: absolute;
@@ -232,16 +237,15 @@ button.move, button.warn {
 }
 .schedule-block {
   position: absolute;
-  left: 44px;
-  right: 4px;
   background: var(--panel);
   border-left: 3px solid var(--brass);
   border-radius: 6px;
-  padding: 2px 8px;
+  padding: 2px 6px;
   overflow: hidden;
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(0,0,0,.35);
   z-index: 2;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: center;
