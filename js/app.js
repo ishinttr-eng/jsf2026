@@ -213,7 +213,7 @@ function viewTimetable() {
   const wrap = el("div", { class: "view" });
 
   const search = el("input", {
-    class: "search", type: "search", placeholder: "出演者名・かな・ジャンル・部門で検索",
+    class: "search", type: "search", placeholder: "出演者名・かな・部門で検索",
     value: ttState.q,
     oninput: (e) => { ttState.q = e.target.value; renderTTList(listBox); },
   });
@@ -256,8 +256,7 @@ function renderTTList(box) {
   if (ttState.venue) list = list.filter((p) => p.venueId === ttState.venue);
   if (ttState.genre) list = list.filter((p) => p.genre === ttState.genre);
   if (q) list = list.filter((p) =>
-    normalize(p.name).includes(q) || normalize(p.kana).includes(q) || normalize(p.genre).includes(q)
-    || normalize(p.awardEntry).includes(q));
+    normalize(p.name).includes(q) || normalize(p.kana).includes(q) || normalize(p.awardEntry).includes(q));
 
   box.append(el("p", { class: "note" }, `${list.length}件`));
   if (ttState.venue || q) {
