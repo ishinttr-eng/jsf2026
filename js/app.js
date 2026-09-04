@@ -36,21 +36,32 @@ function showRouteFromHere(toId) {
   render();
 }
 
-// 現在時刻（シミュレーション込み）をもとに、マイタイムテーブル上で「今から向かうべき次のお気に入り」を求める
-function computeMyRouteNow() {
+// マップの各ルート線・凡例ドットに使う色。ステージ間（区間）ごとに順番に割り当てる
+const ROUTE_COLORS = ["#ff2f92", "#3ddc84", "#3f7dff", "#ffb703", "#a78bfa", "#f97316", "#22d3ee", "#f43f5e"];
+
+// 現在時刻（シミュレーション込み）をもとに、マイタイムテーブルでまだ終了していない移動区間を
+// すべて求める（現在地/直前のお気に入り → 次のお気に入り → その次…と連なる区間の配列）
+function computeMyRouteSegments() {
   const info = nowInfo();
   if (!DAYS.includes(info.date)) return { message: "開催日ではありません" };
   const todays = store.performances
     .filter((p) => p.date === info.date && store.favorites.has(perfKey(p)))
     .sort((a, b) => a.startMin - b.startMin);
   if (!todays.length) return { message: "本日のお気に入りが登録されていません" };
-  const next = todays.find((p) => p.startMin > info.min);
+
+  const upcoming = todays.filter((p) => p.startMin > info.min);
+  if (!upcoming.length) return { message: "本日のお気に入り予定はすべて終了しました" };
+
   const prevList = todays.filter((p) => p.startMin <= info.min);
   const prev = prevList.length ? prevList[prevList.length - 1] : null;
-  if (!next) return { message: "本日のお気に入り予定はすべて終了しました" };
-  return prev
-    ? { fromId: prev.venueId, toId: next.venueId, toPerf: next }
-    : { fromHere: true, toId: next.venueId, toPerf: next };
+
+  const segments = [];
+  let fromId = prev ? prev.venueId : null; // null = 最初の区間のみ「現在地から」
+  for (const p of upcoming) {
+    segments.push({ fromId, toId: p.venueId, toPerf: p });
+    fromId = p.venueId;
+  }
+  return { segments };
 }
 
 // ---------- 共通部品 ----------
@@ -333,7 +344,7 @@ function initMap(mapDiv, wrap) {
   myRouteBtn.onAdd = () => {
     const b = L.DomUtil.create("button", "map-loc-btn map-mode-btn");
     b.textContent = "🕒";
-    b.title = "マイルート（現在時刻に応じた次の移動先を表示）";
+    b.title = "マイルート（本日まだ終了していない移動区間をすべて表示）";
     b.classList.toggle("active", !!activeRoute?.myRoute);
     L.DomEvent.on(b, "click", (e) => {
       L.DomEvent.stop(e);
@@ -359,29 +370,12 @@ function drawActiveRoute(wrap) {
     onclick: () => { activeRoute = null; render(); },
   }, "✕");
 
-  // マイルートモード: 表示のたびに現在時刻から改めて「次の移動先」を計算し直す
-  let spec = activeRoute;
   if (activeRoute.myRoute) {
-    const my = computeMyRouteNow();
-    if (my.message) {
-      wrap.append(el("div", { id: "route-banner", class: "route-banner" },
-        el("div", { class: "route-banner-text" },
-          el("div", { class: "route-banner-title" }, "🕒 マイルート"),
-          el("div", { class: "route-banner-sub" }, my.message)),
-        el("div", { class: "route-banner-btns" }, closeBtn)));
-      return;
-    }
-    spec = {
-      myRoute: true,
-      fromHere: !!my.fromHere,
-      fromId: my.fromId,
-      toId: my.toId,
-      fromLabel: my.fromId ? shortVenueName(store.venueById.get(my.fromId)) : null,
-      toLabel: shortVenueName(store.venueById.get(my.toId)),
-      nextPerf: my.toPerf,
-    };
+    drawMyRouteSegments(wrap, closeBtn);
+    return;
   }
 
+  const spec = activeRoute;
   const to = store.venueById.get(spec.toId);
   let coords = null, from = null, precomputed = null;
 
@@ -407,9 +401,6 @@ function drawActiveRoute(wrap) {
   } else {
     subText = `📏 直線距離の目安 約${Math.round(haversineM(coords[0][0], coords[0][1], coords[1][0], coords[1][1]))}m（実測ルート未取得）`;
   }
-  if (spec.myRoute && spec.nextPerf) {
-    subText += ` ／ 次: ${spec.nextPerf.start} ${spec.nextPerf.name}`;
-  }
 
   if (coords) {
     // 地図タイルの色（特に主要道路のオレンジ系）に埋もれないよう、白い縁取り＋高彩度の線色で描画する
@@ -424,11 +415,75 @@ function drawActiveRoute(wrap) {
   const gUrl = gmapsWalkUrl(to.lat, to.lng, from?.lat, from?.lng);
   wrap.append(el("div", { id: "route-banner", class: "route-banner" },
     el("div", { class: "route-banner-text" },
-      el("div", { class: "route-banner-title" }, `${spec.myRoute ? "🕒 " : ""}${fromLabel} → ${spec.toLabel}`),
+      el("div", { class: "route-banner-title" }, `${fromLabel} → ${spec.toLabel}`),
       el("div", { class: "route-banner-sub" }, subText)),
     el("div", { class: "route-banner-btns" },
       el("a", { class: "btn small go", target: "_blank", rel: "noopener", href: gUrl }, "Googleで開く"),
       closeBtn)));
+}
+
+// マイルートモード: マイタイムテーブルでまだ終了していない移動区間をすべて、区間ごとに色分けして描画する
+function drawMyRouteSegments(wrap, closeBtn) {
+  const { message, segments } = computeMyRouteSegments();
+  if (message) {
+    wrap.append(el("div", { id: "route-banner", class: "route-banner" },
+      el("div", { class: "route-banner-text" },
+        el("div", { class: "route-banner-title" }, "🕒 マイルート"),
+        el("div", { class: "route-banner-sub" }, message)),
+      el("div", { class: "route-banner-btns" }, closeBtn)));
+    return;
+  }
+
+  const layers = [];
+  const legRows = [];
+
+  segments.forEach((seg, i) => {
+    const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
+    const to = store.venueById.get(seg.toId);
+    let coords = null, from = null, precomputed = null;
+
+    if (seg.fromId) {
+      from = store.venueById.get(seg.fromId);
+      precomputed = getRoute(seg.fromId, seg.toId);
+      coords = precomputed ? precomputed.coords : [[from.lat, from.lng], [to.lat, to.lng]];
+    } else if (store.location) {
+      from = store.location;
+      coords = [[store.location.lat, store.location.lng], [to.lat, to.lng]];
+    }
+
+    const isApprox = !precomputed;
+    if (coords) {
+      const dash = isApprox ? "7 9" : null;
+      const halo = L.polyline(coords, { color: "#ffffff", weight: isApprox ? 6 : 8, opacity: 0.9, dashArray: dash });
+      const line = L.polyline(coords, { color, weight: isApprox ? 3 : 5, opacity: 1, dashArray: dash });
+      layers.push(halo, line);
+    }
+
+    const fromLabel = seg.fromId ? shortVenueName(from) : (from ? "現在地" : "現在地（未取得）");
+    let legText;
+    if (!coords) legText = "現在地が未取得です";
+    else if (precomputed) legText = `🚶約${precomputed.durMin}分（${precomputed.distM}m）`;
+    else legText = `📏約${Math.round(haversineM(coords[0][0], coords[0][1], coords[1][0], coords[1][1]))}m`;
+
+    const gUrl = coords ? gmapsWalkUrl(to.lat, to.lng, from?.lat, from?.lng) : null;
+    legRows.push(el("div", { class: "myroute-leg" },
+      el("span", { class: "myroute-dot", style: `background:${color}` }),
+      el("div", { class: "myroute-main" },
+        el("div", {}, `${fromLabel} → ${shortVenueName(to)}`),
+        el("div", { class: "myroute-sub" }, `${legText}　次: ${seg.toPerf.start} ${seg.toPerf.name}`)),
+      gUrl ? el("a", { class: "myroute-g", href: gUrl, target: "_blank", rel: "noopener", title: "Googleで開く" }, "↗") : null));
+  });
+
+  if (layers.length) {
+    routeLayer = L.featureGroup(layers).addTo(map);
+    map.fitBounds(routeLayer.getBounds(), { padding: [48, 48] });
+  }
+
+  wrap.append(el("div", { id: "route-banner", class: "route-banner myroute-banner" },
+    el("div", { class: "route-banner-text" },
+      el("div", { class: "route-banner-title" }, `🕒 マイルート（残り${segments.length}区間）`),
+      el("div", { class: "myroute-legs" }, legRows)),
+    el("div", { class: "route-banner-btns" }, closeBtn)));
 }
 
 function popupHtml(v) {
