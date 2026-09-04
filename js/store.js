@@ -96,10 +96,26 @@ export function walkFromHere(venueId) {
   return v ? walkMinFromCoords(store.location.lat, store.location.lng, v.lat, v.lng) : null;
 }
 
+function saveFavorites() {
+  localStorage.setItem(FAV_KEY, JSON.stringify([...store.favorites]));
+}
+
 export function toggleFavorite(perfId) {
   if (store.favorites.has(perfId)) store.favorites.delete(perfId);
   else store.favorites.add(perfId);
-  localStorage.setItem(FAV_KEY, JSON.stringify([...store.favorites]));
+  saveFavorites();
+}
+
+// 現在のお気に入り（perfKey文字列の配列）をエクスポート用にそのまま返す
+export function exportFavorites() {
+  return [...store.favorites];
+}
+
+// 共有リンク・ファイルから読み込んだキー配列を取り込む。mode: "merge"（追加）| "replace"（置き換え）
+export function importFavorites(keys, mode) {
+  if (mode === "replace") store.favorites = new Set(keys);
+  else for (const k of keys) store.favorites.add(k);
+  saveFavorites();
 }
 
 // 現在時刻（シミュレーション考慮）: {date: "2026-09-12"|null, min}

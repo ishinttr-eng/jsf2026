@@ -189,6 +189,8 @@ button.move, button.warn {
 }
 .btn.small { padding: 6px 10px; font-size: .78rem; }
 .btn.go { background: var(--ok); color: #06281a; font-weight: 700; }
+.file-label { cursor: pointer; }
+.file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
 
 .day-tabs { display: flex; gap: 8px; margin: 8px 0; }
 .day-tab {
@@ -485,6 +487,7 @@ summary {
   max-height: 82vh;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
   padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
 }
 .modal-head { display: flex; align-items: flex-start; gap: 8px; }

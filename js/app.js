@@ -3,7 +3,7 @@
 import { DAYS, DAY_LABELS, fmtMin, normalize, perfKey, el, gmapsWalkUrl, haversineM } from "./util.js";
 import {
   store, loadData, walkBetween, walkFromHere, getRoute, toggleFavorite, nowInfo,
-  requestLocation, simulateLocation, clearLocation,
+  requestLocation, simulateLocation, clearLocation, exportFavorites, importFavorites,
 } from "./store.js";
 
 const main = document.getElementById("main");
@@ -17,6 +17,7 @@ let expandedVenues = new Set(); // 出演者タブで開いている会場の<de
 // detail: {kind:"venue", venueId, day, from} | {kind:"artist", perf} | {kind:"changes"} | {kind:"settings"} | null
 let detail = null;
 const CHANGES_SEEN_KEY = "jsf.changesSeenAt";
+let shareNote = ""; // 共有リンク作成・ファイル読み込みの結果メッセージ（設定画面に一時表示）
 // activeRoute: {fromId, toId, fromLabel, toLabel} | {fromHere: true, toId, toLabel} | {myRoute: true} | null
 let activeRoute = { myRoute: true }; // マップを開いたときのデフォルトはマイルートモード
 let myRouteIndex = 0; // マイルートで現在フォーカスしている区間（上下スワイプで移動）
@@ -800,7 +801,13 @@ function openChanges() {
 }
 
 function openSettings() {
+  shareNote = "";
   detail = { kind: "settings" };
+  renderDetail();
+}
+
+function openImportPrompt(keys) {
+  detail = { kind: "import", keys };
   renderDetail();
 }
 
@@ -816,8 +823,113 @@ function renderDetail() {
   const modal = detail.kind === "venue" ? venueModal(detail)
     : detail.kind === "artist" ? artistModal(detail.perf)
     : detail.kind === "changes" ? changesModal()
+    : detail.kind === "import" ? importModal(detail)
     : settingsModal();
   document.body.append(modal);
+}
+
+// お気に入りの共有・書き出し・読み込み関連 ----------------------------------
+
+// 共有リンク用URL（?fav=perfKeyをカンマ区切りで列挙）。favoritesが空でもリンク自体は作れる
+function buildShareUrl(keys) {
+  const url = new URL(location.href);
+  url.hash = "";
+  if (keys.length) url.searchParams.set("fav", keys.join(","));
+  else url.searchParams.delete("fav");
+  return url.toString();
+}
+
+async function shareFavoritesLink() {
+  const keys = exportFavorites();
+  if (!keys.length) {
+    shareNote = "お気に入りがまだ登録されていません。";
+    renderDetail();
+    return;
+  }
+  const url = buildShareUrl(keys);
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "JSF Navi 2026 マイタイムテーブル", url });
+    } catch {
+      // 共有シートのキャンセル等は何もしない
+    }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    shareNote = "共有リンクをコピーしました。";
+  } catch {
+    shareNote = url; // クリップボードが使えない環境ではリンクをそのまま表示
+  }
+  renderDetail();
+}
+
+function exportFavoritesFile() {
+  const keys = exportFavorites();
+  if (!keys.length) {
+    shareNote = "お気に入りがまだ登録されていません。";
+    renderDetail();
+    return;
+  }
+  const data = { app: "jsf-navi-2026", exportedAt: new Date().toISOString(), favorites: keys };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = el("a", { href: url, download: "jsf-navi-my-timetable.json" });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function handleImportFileChange(e) {
+  const file = e.target.files[0];
+  e.target.value = ""; // 同じファイルを続けて選んでもchangeが発火するようにリセット
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      const keys = Array.isArray(data) ? data : Array.isArray(data?.favorites) ? data.favorites : null;
+      if (!keys || !keys.length) throw new Error("empty");
+      openImportPrompt(keys);
+    } catch {
+      shareNote = "ファイルの読み込みに失敗しました。JSF Naviから書き出したファイルを選んでください。";
+      renderDetail();
+    }
+  };
+  reader.readAsText(file);
+}
+
+// perfKey（id__date__start）を人が読める形式に変換。演目が見つからない場合はキーをそのまま表示
+function perfKeyLabel(key) {
+  const [id, date, start] = key.split("__");
+  const p = store.performances.find((x) => x.id === id && x.date === date && x.start === start);
+  if (!p) return key;
+  const v = store.venueById.get(p.venueId);
+  return `${DAY_LABELS[date] || date} ${start}　${p.name}${v ? `（${shortVenueName(v)}）` : ""}`;
+}
+
+function importModal(d) {
+  const rows = d.keys.map((k) => el("div", { class: "change-item" }, perfKeyLabel(k)));
+
+  const doImport = (mode) => {
+    importFavorites(d.keys, mode);
+    detail = null;
+    renderDetail();
+    render();
+  };
+
+  return el("div", { id: "modal", onclick: (e) => { if (e.target.id === "modal") closeDetail(); } },
+    el("div", { class: "modal-body" },
+      el("div", { class: "modal-head" },
+        el("h2", {}, "📥 マイタイムテーブルの読み込み"),
+        el("button", { class: "close", onclick: closeDetail }, "✕")),
+      el("p", { class: "note" }, `${d.keys.length}件のお気に入りが見つかりました。どう取り込みますか？`),
+      el("div", { class: "modal-list" }, rows),
+      el("div", { class: "walk-row" },
+        el("button", { class: "btn small", onclick: () => doImport("merge") }, "今のリストに追加する"),
+        el("button", { class: "btn small", onclick: () => doImport("replace") }, "置き換える"),
+        el("button", { class: "btn small", onclick: closeDetail }, "キャンセル"))));
 }
 
 function settingsModal() {
@@ -869,6 +981,13 @@ function settingsModal() {
   else if (store.location) locStatusText = "📍 現在地取得済み（実GPS）";
   else locStatusText = "📍 現在地は未取得です";
 
+  const shareBtn = el("button", { class: "btn small", onclick: shareFavoritesLink }, "🔗 共有リンクを作成");
+  const exportBtn = el("button", { class: "btn small", onclick: exportFavoritesFile }, "⬇️ ファイルに書き出す");
+  const importInput = el("input", {
+    type: "file", accept: "application/json", class: "file-input", onchange: handleImportFileChange,
+  });
+  const importLabel = el("label", { class: "btn small file-label" }, "⬆️ ファイルから読み込む", importInput);
+
   return el("div", { id: "modal", onclick: (e) => { if (e.target.id === "modal") closeDetail(); } },
     el("div", { class: "modal-body" },
       el("div", { class: "modal-head" },
@@ -883,7 +1002,11 @@ function settingsModal() {
       el("h2", {}, "現在地シミュレーション"),
       el("p", { class: "note" }, locStatusText),
       el("div", { class: "filter-row" }, locVenueSel, locApplyBtn),
-      locClearBtn ? el("div", { class: "walk-row" }, locClearBtn) : null));
+      locClearBtn ? el("div", { class: "walk-row" }, locClearBtn) : null,
+      el("h2", {}, "🔗 マイタイムテーブルの共有 / バックアップ"),
+      el("p", { class: "note" }, "お気に入りを他の端末に移したり、友だちと共有したりできます。"),
+      el("div", { class: "walk-row" }, shareBtn, exportBtn, importLabel),
+      shareNote ? el("p", { class: "note" }, shareNote) : null));
 }
 
 const OFFICIAL_PERFORMERS_URL = "https://www.j-streetjazz.com/entry/performers2026/";
@@ -1086,6 +1209,15 @@ loadData().then(async () => {
     (ver ? ` / ${ver}` : "");
   updateChangesBadge();
   render();
+
+  // 共有リンク（?fav=...）で開かれた場合、URLを綺麗にしてから取り込み確認モーダルを出す
+  const params = new URLSearchParams(location.search);
+  const fav = params.get("fav");
+  if (fav) {
+    const keys = fav.split(",").filter(Boolean);
+    history.replaceState(null, "", location.pathname + location.hash);
+    if (keys.length) openImportPrompt(keys);
+  }
 }).catch((e) => {
   main.textContent = `データの読み込みに失敗しました: ${e.message}`;
 });
