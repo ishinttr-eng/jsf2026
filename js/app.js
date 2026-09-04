@@ -831,6 +831,10 @@ function renderDetail() {
     : detail.kind === "import" ? importModal(detail)
     : settingsModal();
   document.body.append(modal);
+  // 会場のタイムテーブルを開いた時、演奏中の項目があれば自動でそこまでスクロール
+  if (detail.kind === "venue") {
+    modal.querySelector("[data-scroll-target]")?.scrollIntoView({ block: "center" });
+  }
 }
 
 // お気に入りの共有・書き出し・読み込み関連 ----------------------------------
@@ -1121,8 +1125,8 @@ function venueModal(d) {
       el("div", { class: "modal-list" },
         ps.length ? ps.map((p) => {
           const playingNow = info.date === p.date && p.startMin <= info.min && info.min < p.endMin;
-          const c = perfCard(p);
-          if (playingNow) c.classList.add("playing");
+          const c = perfCard(p, { highlight: playingNow ? "playing" : null });
+          if (playingNow) c.dataset.scrollTarget = "true";
           return c;
         }) : el("p", { class: "note" }, "この日の演奏はありません"))));
 }
