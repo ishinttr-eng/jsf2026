@@ -357,23 +357,47 @@ summary {
 .route-banner-btns { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .close-route { background: var(--panel2); color: var(--text); }
 
-/* 既定は他のルートバナーと同じ1行サマリー表示（地図を圧迫しないよう折りたたみ）。
-   「全N区間 ▼」で展開したときだけ縦に伸ばし、上限も画面の1/4程度に抑える */
-.myroute-banner.expanded { align-items: flex-start; max-height: 28vh; }
-.myroute-banner.expanded .route-banner-btns { padding-top: 2px; }
-.myroute-legs {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 4px;
-  max-height: 20vh;
-  overflow-y: auto;
+/* マイルート: 時刻設定の<input type=time>のように、カードを1件ずつ縦スワイプ（スクロールスナップ）
+   で切り替える。地図の常時の占有を1カード分の高さに固定し、地図を圧迫しないようにする */
+.myroute-banner { padding: 6px 8px 6px 10px; gap: 6px; }
+.myroute-nav {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: var(--panel2);
+  color: var(--muted);
+  font-size: .65rem;
+  line-height: 1;
+  cursor: pointer;
 }
-.myroute-leg { display: flex; align-items: flex-start; gap: 8px; }
-.myroute-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; margin-top: 4px; }
+.myroute-carousel-wrap { flex: 1; min-width: 0; overflow: hidden; }
+.myroute-carousel {
+  height: 56px;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+}
+.myroute-carousel::-webkit-scrollbar { display: none; }
+.myroute-card {
+  height: 56px;
+  box-sizing: border-box;
+  scroll-snap-align: start;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
 .myroute-main { flex: 1; min-width: 0; font-size: .78rem; color: var(--text); }
-.myroute-sub { font-size: .7rem; color: var(--muted); margin-top: 1px; }
+.myroute-route, .myroute-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.myroute-sub { font-size: .68rem; color: var(--muted); margin-top: 1px; }
 .myroute-g { flex: 0 0 auto; color: var(--accent); text-decoration: none; font-size: .85rem; padding: 0 2px; }
+.myroute-counter { font-size: .68rem; color: var(--muted); white-space: nowrap; }
 
 /* モーダル */
 #modal {

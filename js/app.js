@@ -18,7 +18,7 @@ let detail = null;
 const CHANGES_SEEN_KEY = "jsf.changesSeenAt";
 // activeRoute: {fromId, toId, fromLabel, toLabel} | {fromHere: true, toId, toLabel} | {myRoute: true} | null
 let activeRoute = { myRoute: true }; // マップを開いたときのデフォルトはマイルートモード
-let myRouteExpanded = false; // マイルートバナーの区間リストを開いているか（地図を圧迫しないよう既定は折りたたみ）
+let myRouteIndex = 0; // マイルートで現在フォーカスしている区間（上下スワイプで移動）
 
 // 会場詳細・マイタイムテーブルなどから、地図タブに切り替えてルートを表示する
 function showRouteBetween(fromId, toId) {
@@ -429,6 +429,10 @@ function drawActiveRoute(wrap) {
 }
 
 // マイルートモード: マイタイムテーブルでまだ終了していない移動区間をすべて、区間ごとに色分けして描画する
+const MYROUTE_CARD_H = 56; // 1カード分の高さ(px)。スワイプの1コマ分＝この高さ
+
+// マイルートモード: 区間ごとの線を地図に描いておき、カードを上下スワイプ（時刻設定と同じ
+// スクロールスナップ方式）で1件ずつ切り替えると、対応する線が連動してハイライトされる
 function drawMyRouteSegments(wrap, closeBtn) {
   const { message, segments } = computeMyRouteSegments();
   if (message) {
@@ -440,11 +444,10 @@ function drawMyRouteSegments(wrap, closeBtn) {
     return;
   }
 
-  const layers = [];
-  const legRows = [];
-  let firstLegSummary = "";
+  myRouteIndex = Math.max(0, Math.min(myRouteIndex, segments.length - 1));
 
-  segments.forEach((seg, i) => {
+  routeLayer = L.featureGroup().addTo(map);
+  const segInfo = segments.map((seg, i) => {
     const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
     const to = store.venueById.get(seg.toId);
     let coords = null, from = null, precomputed = null;
@@ -458,12 +461,13 @@ function drawMyRouteSegments(wrap, closeBtn) {
       coords = [[store.location.lat, store.location.lng], [to.lat, to.lng]];
     }
 
-    const isApprox = !precomputed;
+    let halo = null, line = null;
     if (coords) {
-      const dash = isApprox ? "7 9" : null;
-      const halo = L.polyline(coords, { color: "#ffffff", weight: isApprox ? 6 : 8, opacity: 0.9, dashArray: dash });
-      const line = L.polyline(coords, { color, weight: isApprox ? 3 : 5, opacity: 1, dashArray: dash });
-      layers.push(halo, line);
+      const dash = precomputed ? null : "7 9";
+      halo = L.polyline(coords, { color: "#ffffff", dashArray: dash });
+      line = L.polyline(coords, { color, dashArray: dash });
+      routeLayer.addLayer(halo);
+      routeLayer.addLayer(line);
     }
 
     const fromLabel = seg.fromId ? stageLabel(from) : (from ? "現在地" : "現在地（未取得）");
@@ -472,34 +476,64 @@ function drawMyRouteSegments(wrap, closeBtn) {
     else if (precomputed) legText = `🚶約${precomputed.durMin}分（${precomputed.distM}m）`;
     else legText = `📏約${Math.round(haversineM(coords[0][0], coords[0][1], coords[1][0], coords[1][1]))}m`;
 
-    const gUrl = coords ? gmapsWalkUrl(to.lat, to.lng, from?.lat, from?.lng) : null;
-    legRows.push(el("div", { class: "myroute-leg" },
-      el("span", { class: "myroute-dot", style: `background:${color}` }),
-      el("div", { class: "myroute-main" },
-        el("div", {}, `${fromLabel} → ${stageLabel(to)}`),
-        el("div", { class: "myroute-sub" }, `${legText}　次: ${seg.toPerf.start} ${seg.toPerf.name}`)),
-      gUrl ? el("a", { class: "myroute-g", href: gUrl, target: "_blank", rel: "noopener", title: "Googleで開く" }, "↗") : null));
-
-    if (i === 0) firstLegSummary = `${fromLabel} → ${stageLabel(to)}　${legText}`;
+    return { seg, to, from, coords, halo, line, fromLabel, legText };
   });
 
-  if (layers.length) {
-    routeLayer = L.featureGroup(layers).addTo(map);
-    map.fitBounds(routeLayer.getBounds(), { padding: [48, 48] });
-  }
+  // フォーカス中の区間だけ太く・不透明に、他は細く・薄くして「今どの線か」を一目で分かるようにする
+  const applyHighlight = (idx) => {
+    segInfo.forEach((s, i) => {
+      if (!s.line) return;
+      const focused = i === idx;
+      s.halo.setStyle({ weight: focused ? 9 : 5, opacity: focused ? 0.95 : 0.45 });
+      s.line.setStyle({ weight: focused ? 5 : 2.5, opacity: focused ? 1 : 0.4 });
+      if (focused) s.line.bringToFront();
+    });
+  };
+  const focusMap = (idx) => {
+    const s = segInfo[idx];
+    if (s.line) map.fitBounds(s.line.getBounds(), { padding: [56, 90] });
+    else if (routeLayer.getLayers().length) map.fitBounds(routeLayer.getBounds(), { padding: [48, 48] });
+  };
+  applyHighlight(myRouteIndex);
+  focusMap(myRouteIndex);
 
-  const toggleBtn = el("button", {
-    class: "btn small",
-    onclick: () => { myRouteExpanded = !myRouteExpanded; drawActiveRoute(wrap); },
-  }, myRouteExpanded ? "閉じる ▲" : `全${segments.length}区間 ▼`);
+  const counter = el("span", { class: "myroute-counter" }, `${myRouteIndex + 1} / ${segments.length}`);
 
-  wrap.append(el("div", { id: "route-banner", class: `route-banner myroute-banner${myRouteExpanded ? " expanded" : ""}` },
-    el("div", { class: "route-banner-text" },
-      el("div", { class: "route-banner-title" }, "🕒 マイルート"),
-      myRouteExpanded
-        ? el("div", { class: "myroute-legs" }, legRows)
-        : el("div", { class: "route-banner-sub" }, firstLegSummary)),
-    el("div", { class: "route-banner-btns" }, toggleBtn, closeBtn)));
+  const cards = segInfo.map(({ seg, to, from, coords, fromLabel, legText }) => {
+    const gUrl = coords ? gmapsWalkUrl(to.lat, to.lng, from?.lat, from?.lng) : null;
+    return el("div", { class: "myroute-card" },
+      el("div", { class: "myroute-main" },
+        el("div", { class: "myroute-route" }, `${fromLabel} → ${stageLabel(to)}`),
+        el("div", { class: "myroute-sub" }, `${legText}　次: ${seg.toPerf.start} ${seg.toPerf.name}`)),
+      gUrl ? el("a", { class: "myroute-g", href: gUrl, target: "_blank", rel: "noopener", title: "Googleで開く" }, "↗") : null);
+  });
+  const carousel = el("div", { class: "myroute-carousel" }, cards);
+
+  const goTo = (idx) => {
+    const clamped = Math.max(0, Math.min(segments.length - 1, idx));
+    carousel.scrollTo({ top: clamped * MYROUTE_CARD_H, behavior: "smooth" });
+  };
+
+  let settleTimer = null;
+  carousel.addEventListener("scroll", () => {
+    const idx = Math.max(0, Math.min(segments.length - 1, Math.round(carousel.scrollTop / MYROUTE_CARD_H)));
+    if (idx !== myRouteIndex) {
+      myRouteIndex = idx;
+      applyHighlight(idx);
+      counter.textContent = `${idx + 1} / ${segments.length}`;
+    }
+    // 地図の視点合わせはスクロールが落ち着いてから（スワイプ中に何度も動くと酔うため）
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => focusMap(myRouteIndex), 150);
+  });
+
+  wrap.append(el("div", { id: "route-banner", class: "route-banner myroute-banner" },
+    el("button", { class: "myroute-nav", onclick: () => goTo(myRouteIndex - 1) }, "▲"),
+    el("div", { class: "myroute-carousel-wrap" }, carousel),
+    el("button", { class: "myroute-nav", onclick: () => goTo(myRouteIndex + 1) }, "▼"),
+    el("div", { class: "route-banner-btns" }, counter, closeBtn)));
+
+  carousel.scrollTop = myRouteIndex * MYROUTE_CARD_H; // DOM接続後でないと反映されないため最後に設定
 }
 
 function popupHtml(v) {
