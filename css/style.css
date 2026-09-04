@@ -49,6 +49,15 @@ body {
   cursor: pointer;
   white-space: nowrap;
 }
+.settings-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 2px;
+}
 
 #main { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
 .view { padding: 12px 12px 20px; max-width: 640px; margin: 0 auto; }

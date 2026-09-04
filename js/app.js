@@ -4,12 +4,13 @@ import { DAYS, DAY_LABELS, fmtMin, normalize, perfKey, el, gmapsWalkUrl, haversi
 import { store, loadData, walkBetween, walkFromHere, getRoute, toggleFavorite, nowInfo, requestLocation } from "./store.js";
 
 const main = document.getElementById("main");
-let currentTab = "now";
+// 開催日当日はマイタイムテーブル、それ以外は出演者タブをデフォルトで開く
+let currentTab = DAYS.includes(nowInfo().date) ? "my" : "timetable";
 let map = null, markers = new Map(), meMarker = null, routeLayer = null;
 let ttState = { day: "", q: "", venue: "", genre: "" }; // day: "" は「すべての日程」
-let myState = { day: DAYS[0] }; // マイタイムテーブルの日付絞り込み（すべては無し、常にどちらかの日）
+let myState = { day: DAYS.includes(nowInfo().date) ? nowInfo().date : DAYS[0] }; // マイタイムテーブルの日付絞り込み
 let expandedVenues = new Set(); // 出演者タブで開いている会場の<details>を再描画後も維持するため
-// detail: {kind:"venue", venueId, day, from} | {kind:"artist", perf} | {kind:"changes"} | null
+// detail: {kind:"venue", venueId, day, from} | {kind:"artist", perf} | {kind:"changes"} | {kind:"settings"} | null
 let detail = null;
 const CHANGES_SEEN_KEY = "jsf.changesSeenAt";
 // activeRoute: {fromId, toId, fromLabel, toLabel} | {fromHere: true, toId, toLabel} | {myRoute: true} | null
@@ -118,40 +119,39 @@ function viewNow() {
   const info = nowInfo();
   const wrap = el("div", { class: "view" });
 
-  // 時刻シミュレーション行
-  const simRow = el("div", { class: "sim-row" },
-    el("span", {}, info.simulated
-      ? `🕐 ${DAY_LABELS[info.date] || info.date} ${fmtMin(info.min)}（シミュレーション中）`
-      : `🕐 ${fmtMin(info.min)} 現在`));
-  if (store.simNow) {
-    simRow.append(el("button", { class: "link", onclick: () => { store.simNow = null; render(); } }, "実時刻に戻す"));
+  // 時刻シミュレーション中はバッジで表示（切り替え自体は⚙️設定へ移動）
+  const badge = simBadge();
+  if (badge) {
+    wrap.append(badge);
   } else {
-    const daySel = el("select", { class: "select sim-input" },
-      DAYS.map((d) => el("option", { value: d }, DAY_LABELS[d])));
-    const timeIn = el("input", { class: "select sim-input", type: "time", value: "14:00" });
-    simRow.append(daySel, timeIn, el("button", {
-      class: "link", onclick: () => {
-        const [h, m] = timeIn.value.split(":").map(Number);
-        if (Number.isFinite(h)) {
-          store.simNow = { date: daySel.value, min: h * 60 + m };
-          render();
-        }
-      },
-    }, "この時刻で見る"));
+    wrap.append(el("div", { class: "sim-row" },
+      el("span", {}, `🕐 ${fmtMin(info.min)} 現在`),
+      el("button", { class: "link", onclick: openSettings }, "⚙️ 時刻を変える")));
   }
-  wrap.append(simRow);
 
   wrap.append(locationRow());
 
   if (!DAYS.includes(info.date)) {
     wrap.append(el("p", { class: "note" },
-      "開催日（9/12・9/13）ではありません。「時刻を変える」で当日の時間帯をプレビューできます。"));
+      "開催日（9/12・9/13）ではありません。⚙️設定の時刻シミュレーションで当日の時間帯をプレビューできます。"));
     return wrap;
   }
 
+  // 現在地が取得済みなら近い順、未取得なら時刻順（元の並び）のまま
+  const byDistance = (list) => {
+    if (!store.location) return list;
+    return [...list].sort((a, b) => {
+      const da = walkFromHere(a.venueId), db = walkFromHere(b.venueId);
+      if (da == null && db == null) return 0;
+      if (da == null) return 1;
+      if (db == null) return -1;
+      return da - db;
+    });
+  };
+
   const todays = store.performances.filter((p) => p.date === info.date);
-  const playing = todays.filter((p) => p.startMin <= info.min && info.min < p.endMin);
-  const soon = todays.filter((p) => p.startMin > info.min && p.startMin - info.min <= 30);
+  const playing = byDistance(todays.filter((p) => p.startMin <= info.min && info.min < p.endMin));
+  const soon = byDistance(todays.filter((p) => p.startMin > info.min && p.startMin - info.min <= 30));
 
   const section = (title, list, withCountdown) => {
     wrap.append(el("h2", {}, `${title}（${list.length}）`));
@@ -568,6 +568,11 @@ function openChanges() {
   updateChangesBadge();
 }
 
+function openSettings() {
+  detail = { kind: "settings" };
+  renderDetail();
+}
+
 function closeDetail() {
   detail = null;
   renderDetail();
@@ -579,8 +584,48 @@ function renderDetail() {
   if (!detail) return;
   const modal = detail.kind === "venue" ? venueModal(detail)
     : detail.kind === "artist" ? artistModal(detail.perf)
-    : changesModal();
+    : detail.kind === "changes" ? changesModal()
+    : settingsModal();
   document.body.append(modal);
+}
+
+function settingsModal() {
+  const info = nowInfo();
+
+  const defaultDay = DAYS.includes(info.date) ? info.date : DAYS[0]; // シミュレーション中ならその日、実時刻なら開催日当日ならその日
+  const daySel = el("select", { class: "select sim-input" },
+    DAYS.map((d) => {
+      const o = el("option", { value: d }, DAY_LABELS[d]);
+      if (defaultDay === d) o.selected = true;
+      return o;
+    }));
+  const timeIn = el("input", { class: "select sim-input", type: "time", value: fmtMin(info.min) });
+
+  const applyBtn = el("button", {
+    class: "btn small", onclick: () => {
+      const [h, m] = timeIn.value.split(":").map(Number);
+      if (Number.isFinite(h)) {
+        store.simNow = { date: daySel.value, min: h * 60 + m };
+        render();
+      }
+    },
+  }, "この時刻で見る");
+
+  const resetBtn = store.simNow
+    ? el("button", { class: "btn small", onclick: () => { store.simNow = null; render(); } }, "実時刻に戻す")
+    : null;
+
+  return el("div", { id: "modal", onclick: (e) => { if (e.target.id === "modal") closeDetail(); } },
+    el("div", { class: "modal-body" },
+      el("div", { class: "modal-head" },
+        el("h2", {}, "⚙️ 設定"),
+        el("button", { class: "close", onclick: closeDetail }, "✕")),
+      el("h2", {}, "時刻シミュレーション"),
+      el("p", { class: "note" }, info.simulated
+        ? `🕐 ${DAY_LABELS[info.date] || info.date} ${fmtMin(info.min)}（シミュレーション中）`
+        : `🕐 ${fmtMin(info.min)}（実時刻）`),
+      el("div", { class: "filter-row" }, daySel, timeIn),
+      el("div", { class: "walk-row" }, applyBtn, resetBtn)));
 }
 
 const OFFICIAL_PERFORMERS_URL = "https://www.j-streetjazz.com/entry/performers2026/";
@@ -760,6 +805,8 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   }
   render();
 });
+
+document.getElementById("settings-btn").addEventListener("click", openSettings);
 
 // sw.jsのCACHE名（jsf-navi-${VERSION}）から現在キャッシュされているバージョンを読み取る。
 // sw.js側のVERSIONと二重管理にならないよう、値そのものはここでは持たない
