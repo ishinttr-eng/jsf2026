@@ -1,7 +1,10 @@
 // JSF Navi 2026 - メインUI
 
 import { DAYS, DAY_LABELS, fmtMin, normalize, perfKey, el, gmapsWalkUrl, haversineM } from "./util.js";
-import { store, loadData, walkBetween, walkFromHere, getRoute, toggleFavorite, nowInfo, requestLocation } from "./store.js";
+import {
+  store, loadData, walkBetween, walkFromHere, getRoute, toggleFavorite, nowInfo,
+  requestLocation, simulateLocation, clearLocation,
+} from "./store.js";
 
 const main = document.getElementById("main");
 // 開催日当日はマイタイムテーブル、それ以外は出演者タブをデフォルトで開く
@@ -169,16 +172,20 @@ function viewNow() {
 }
 
 function locationRow() {
+  if (store.location) {
+    const text = store.locationSimulated
+      ? `📍 現在地シミュレーション中: ${store.locationLabel}（⚙️設定で変更）`
+      : "📍 現在地取得済み（徒歩時間は直線距離からの目安）";
+    return el("div", { class: "loc-row" }, el("span", { class: "note" }, text));
+  }
   return el("div", { class: "loc-row" },
-    store.location
-      ? el("span", { class: "note" }, "📍 現在地取得済み（徒歩時間は直線距離からの目安）")
-      : el("button", {
-        class: "btn small", onclick: async (e) => {
-          e.target.textContent = "取得中…";
-          try { await requestLocation(); render(); }
-          catch { e.target.textContent = "現在地を取得できませんでした（再試行）"; }
-        },
-      }, "📍 現在地を取得して徒歩時間を表示"));
+    el("button", {
+      class: "btn small", onclick: async (e) => {
+        e.target.textContent = "取得中…";
+        try { await requestLocation(); render(); }
+        catch { e.target.textContent = "現在地を取得できませんでした（再試行）"; }
+      },
+    }, "📍 現在地を取得して徒歩時間を表示"));
 }
 
 // ---------- 出演者・タイムテーブル ----------
@@ -615,6 +622,29 @@ function settingsModal() {
     ? el("button", { class: "btn small", onclick: () => { store.simNow = null; render(); } }, "実時刻に戻す")
     : null;
 
+  // 現在地シミュレーション（実GPSが使えない環境での動作確認用）
+  const locVenueSel = el("select", { class: "select sim-input" },
+    el("option", { value: "" }, "会場を選択"),
+    store.venues.map((v) => el("option", { value: v.id }, venueLabel(v))));
+
+  const locApplyBtn = el("button", {
+    class: "btn small", onclick: () => {
+      const v = store.venueById.get(locVenueSel.value);
+      if (v) { simulateLocation(v.lat, v.lng, shortVenueName(v)); render(); }
+    },
+  }, "この場所にいることにする");
+
+  const locClearBtn = store.location
+    ? el("button", {
+      class: "btn small", onclick: () => { clearLocation(); render(); },
+    }, store.locationSimulated ? "シミュレーションを解除" : "現在地をクリア")
+    : null;
+
+  let locStatusText;
+  if (store.location && store.locationSimulated) locStatusText = `📍 シミュレーション中: ${store.locationLabel}`;
+  else if (store.location) locStatusText = "📍 現在地取得済み（実GPS）";
+  else locStatusText = "📍 現在地は未取得です";
+
   return el("div", { id: "modal", onclick: (e) => { if (e.target.id === "modal") closeDetail(); } },
     el("div", { class: "modal-body" },
       el("div", { class: "modal-head" },
@@ -625,7 +655,11 @@ function settingsModal() {
         ? `🕐 ${DAY_LABELS[info.date] || info.date} ${fmtMin(info.min)}（シミュレーション中）`
         : `🕐 ${fmtMin(info.min)}（実時刻）`),
       el("div", { class: "filter-row" }, daySel, timeIn),
-      el("div", { class: "walk-row" }, applyBtn, resetBtn)));
+      el("div", { class: "walk-row" }, applyBtn, resetBtn),
+      el("h2", {}, "現在地シミュレーション"),
+      el("p", { class: "note" }, locStatusText),
+      el("div", { class: "filter-row" }, locVenueSel, locApplyBtn),
+      locClearBtn ? el("div", { class: "walk-row" }, locClearBtn) : null));
 }
 
 const OFFICIAL_PERFORMERS_URL = "https://www.j-streetjazz.com/entry/performers2026/";

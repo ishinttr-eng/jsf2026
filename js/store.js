@@ -17,7 +17,9 @@ export const store = {
   checkedAt: "",         // うちのシステムが直近にチェックした時刻（差分の有無に関わらず定期更新）
   changes: [],           // [{checkedAt, sourceUpdatedAt, items:[...]}] 出演者変更の検出履歴（新しい順）
   favorites: new Set(JSON.parse(localStorage.getItem(FAV_KEY) || "[]")),
-  location: null,        // {lat, lng} 現在地（取得済みのとき）
+  location: null,        // {lat, lng} 現在地（実GPSまたはシミュレーション）
+  locationSimulated: false, // locationがシミュレーション（会場選択）によるものか
+  locationLabel: "",     // シミュレーション時の表示ラベル（会場名など）
   simNow: null,          // {date, min} 時刻シミュレーション（null=実時刻）
 };
 
@@ -114,10 +116,25 @@ export function requestLocation() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         store.location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        store.locationSimulated = false;
+        store.locationLabel = "";
         resolve(store.location);
       },
       (err) => reject(err),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
     );
   });
+}
+
+// 現在地を会場の座標でシミュレーション（実GPSを取得できない環境での動作確認用）
+export function simulateLocation(lat, lng, label) {
+  store.location = { lat, lng };
+  store.locationSimulated = true;
+  store.locationLabel = label || "";
+}
+
+export function clearLocation() {
+  store.location = null;
+  store.locationSimulated = false;
+  store.locationLabel = "";
 }
