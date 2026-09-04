@@ -18,11 +18,12 @@ let detail = null;
 const CHANGES_SEEN_KEY = "jsf.changesSeenAt";
 // activeRoute: {fromId, toId, fromLabel, toLabel} | {fromHere: true, toId, toLabel} | {myRoute: true} | null
 let activeRoute = { myRoute: true }; // マップを開いたときのデフォルトはマイルートモード
+let myRouteExpanded = false; // マイルートバナーの区間リストを開いているか（地図を圧迫しないよう既定は折りたたみ）
 
 // 会場詳細・マイタイムテーブルなどから、地図タブに切り替えてルートを表示する
 function showRouteBetween(fromId, toId) {
   const from = store.venueById.get(fromId), to = store.venueById.get(toId);
-  activeRoute = { fromId, toId, fromLabel: shortVenueName(from), toLabel: shortVenueName(to) };
+  activeRoute = { fromId, toId, fromLabel: stageLabel(from), toLabel: stageLabel(to) };
   detail = null;
   currentTab = "map";
   render();
@@ -30,7 +31,7 @@ function showRouteBetween(fromId, toId) {
 
 function showRouteFromHere(toId) {
   const to = store.venueById.get(toId);
-  activeRoute = { fromHere: true, toId, toLabel: shortVenueName(to) };
+  activeRoute = { fromHere: true, toId, toLabel: stageLabel(to) };
   detail = null;
   currentTab = "map";
   render();
@@ -72,6 +73,11 @@ function venueLabel(v) {
 
 function shortVenueName(v) {
   return v.name.replace(/\s*supported by.*$/i, "");
+}
+
+// ステージ番号+短縮名（例: "S26 一番町四丁目 仙台三越本館前"）。ルート表示で会場を一目で識別できるように
+function stageLabel(v) {
+  return `S${String(v.stageNo).padStart(2, "0")} ${shortVenueName(v)}`;
 }
 
 // 「演奏中」タブで設定した時刻シミュレーション中であることを他の画面でも分かるように表示するバッジ
@@ -436,6 +442,7 @@ function drawMyRouteSegments(wrap, closeBtn) {
 
   const layers = [];
   const legRows = [];
+  let firstLegSummary = "";
 
   segments.forEach((seg, i) => {
     const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
@@ -459,7 +466,7 @@ function drawMyRouteSegments(wrap, closeBtn) {
       layers.push(halo, line);
     }
 
-    const fromLabel = seg.fromId ? shortVenueName(from) : (from ? "現在地" : "現在地（未取得）");
+    const fromLabel = seg.fromId ? stageLabel(from) : (from ? "現在地" : "現在地（未取得）");
     let legText;
     if (!coords) legText = "現在地が未取得です";
     else if (precomputed) legText = `🚶約${precomputed.durMin}分（${precomputed.distM}m）`;
@@ -469,9 +476,11 @@ function drawMyRouteSegments(wrap, closeBtn) {
     legRows.push(el("div", { class: "myroute-leg" },
       el("span", { class: "myroute-dot", style: `background:${color}` }),
       el("div", { class: "myroute-main" },
-        el("div", {}, `${fromLabel} → ${shortVenueName(to)}`),
+        el("div", {}, `${fromLabel} → ${stageLabel(to)}`),
         el("div", { class: "myroute-sub" }, `${legText}　次: ${seg.toPerf.start} ${seg.toPerf.name}`)),
       gUrl ? el("a", { class: "myroute-g", href: gUrl, target: "_blank", rel: "noopener", title: "Googleで開く" }, "↗") : null));
+
+    if (i === 0) firstLegSummary = `${fromLabel} → ${stageLabel(to)}　${legText}`;
   });
 
   if (layers.length) {
@@ -479,11 +488,18 @@ function drawMyRouteSegments(wrap, closeBtn) {
     map.fitBounds(routeLayer.getBounds(), { padding: [48, 48] });
   }
 
-  wrap.append(el("div", { id: "route-banner", class: "route-banner myroute-banner" },
+  const toggleBtn = el("button", {
+    class: "btn small",
+    onclick: () => { myRouteExpanded = !myRouteExpanded; drawActiveRoute(wrap); },
+  }, myRouteExpanded ? "閉じる ▲" : `全${segments.length}区間 ▼`);
+
+  wrap.append(el("div", { id: "route-banner", class: `route-banner myroute-banner${myRouteExpanded ? " expanded" : ""}` },
     el("div", { class: "route-banner-text" },
-      el("div", { class: "route-banner-title" }, `🕒 マイルート（残り${segments.length}区間）`),
-      el("div", { class: "myroute-legs" }, legRows)),
-    el("div", { class: "route-banner-btns" }, closeBtn)));
+      el("div", { class: "route-banner-title" }, "🕒 マイルート"),
+      myRouteExpanded
+        ? el("div", { class: "myroute-legs" }, legRows)
+        : el("div", { class: "route-banner-sub" }, firstLegSummary)),
+    el("div", { class: "route-banner-btns" }, toggleBtn, closeBtn)));
 }
 
 function popupHtml(v) {

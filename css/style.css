@@ -357,21 +357,23 @@ summary {
 .route-banner-btns { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .close-route { background: var(--panel2); color: var(--text); }
 
-.myroute-banner { align-items: flex-start; max-height: 50vh; }
-.myroute-banner .route-banner-btns { padding-top: 2px; }
+/* 既定は他のルートバナーと同じ1行サマリー表示（地図を圧迫しないよう折りたたみ）。
+   「全N区間 ▼」で展開したときだけ縦に伸ばし、上限も画面の1/4程度に抑える */
+.myroute-banner.expanded { align-items: flex-start; max-height: 28vh; }
+.myroute-banner.expanded .route-banner-btns { padding-top: 2px; }
 .myroute-legs {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 6px;
-  max-height: 40vh;
+  gap: 6px;
+  margin-top: 4px;
+  max-height: 20vh;
   overflow-y: auto;
 }
 .myroute-leg { display: flex; align-items: flex-start; gap: 8px; }
-.myroute-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; margin-top: 4px; }
-.myroute-main { flex: 1; min-width: 0; font-size: .82rem; color: var(--text); }
-.myroute-sub { font-size: .72rem; color: var(--muted); margin-top: 1px; }
-.myroute-g { flex: 0 0 auto; color: var(--accent); text-decoration: none; font-size: .9rem; padding: 0 2px; }
+.myroute-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; margin-top: 4px; }
+.myroute-main { flex: 1; min-width: 0; font-size: .78rem; color: var(--text); }
+.myroute-sub { font-size: .7rem; color: var(--muted); margin-top: 1px; }
+.myroute-g { flex: 0 0 auto; color: var(--accent); text-decoration: none; font-size: .85rem; padding: 0 2px; }
 
 /* モーダル */
 #modal {
