@@ -715,17 +715,20 @@ function layoutScheduleColumns(list) {
 }
 
 const SCHEDULE_GUTTER = "44px"; // 時刻ラベル分の左余白
+const SCHEDULE_TOP_PAD = 16; // 先頭の重なり警告ラベルがはみ出さないための上余白
 
 function renderMySchedule(wrap, list, day) {
   const startMin = Math.min(SCHEDULE_START_MIN, list[0].startMin);
   const endMin = Math.max(SCHEDULE_END_MIN, list[list.length - 1].endMin);
-  const height = (endMin - startMin) * SCHEDULE_PX_PER_MIN;
+  // 先頭の予定に重なり警告が付くと、ラベルが本来の時刻位置より少し上（マイナス方向）に
+  // はみ出すため、その分の余白を上に確保しておく
+  const height = (endMin - startMin) * SCHEDULE_PX_PER_MIN + SCHEDULE_TOP_PAD;
 
   const container = el("div", { class: "schedule-table" });
   container.style.height = `${height}px`;
 
   for (let h = Math.floor(startMin / 60); h <= Math.ceil(endMin / 60); h++) {
-    const top = (h * 60 - startMin) * SCHEDULE_PX_PER_MIN;
+    const top = (h * 60 - startMin) * SCHEDULE_PX_PER_MIN + SCHEDULE_TOP_PAD;
     container.append(
       el("div", { class: "schedule-hour-line", style: `top:${top}px` }),
       el("div", { class: "schedule-hour-row", style: `top:${top}px` },
@@ -735,7 +738,7 @@ function renderMySchedule(wrap, list, day) {
   const info = nowInfo();
   if (info.date === day && info.min >= startMin && info.min <= endMin) {
     container.append(el("div", {
-      class: "schedule-now-line", style: `top:${(info.min - startMin) * SCHEDULE_PX_PER_MIN}px`,
+      class: "schedule-now-line", style: `top:${(info.min - startMin) * SCHEDULE_PX_PER_MIN + SCHEDULE_TOP_PAD}px`,
     }));
   }
 
@@ -747,7 +750,7 @@ function renderMySchedule(wrap, list, day) {
       const gap = p.startMin - prev.endMin;
       if (need > 0 || gap < 0) {
         const ok = gap >= 0 && need <= gap;
-        const top = (p.startMin - startMin) * SCHEDULE_PX_PER_MIN - 13;
+        const top = (p.startMin - startMin) * SCHEDULE_PX_PER_MIN - 13 + SCHEDULE_TOP_PAD;
         container.append(el("div", {
           class: `schedule-gap ${ok ? "" : "ng"}`,
           style: `top:${top}px`,
@@ -757,7 +760,7 @@ function renderMySchedule(wrap, list, day) {
     }
 
     const v = store.venueById.get(p.venueId);
-    const top = (p.startMin - startMin) * SCHEDULE_PX_PER_MIN;
+    const top = (p.startMin - startMin) * SCHEDULE_PX_PER_MIN + SCHEDULE_TOP_PAD;
     const blockH = Math.max(46, (p.endMin - p.startMin) * SCHEDULE_PX_PER_MIN);
     // 列幅は「時刻ラベル分を引いた残り幅」を重なり数（最大3）で分割。4列目以降は
     // 100%の外側に配置されるので、schedule-table-wrapの横スクロールで見られる
