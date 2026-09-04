@@ -203,6 +203,70 @@ button.move, button.warn {
 }
 .day-tab.active { background: var(--brass); color: #2b1f05; font-weight: 700; border-color: var(--brass); }
 .day-tab.disabled { opacity: .45; }
+.mode-tabs { margin-top: -2px; }
+.mode-tabs .day-tab { font-size: .8rem; padding: 6px; }
+
+/* マイタイムテーブルのスケジュール表モード: 縦軸=時刻の1本のタイムライン */
+.schedule-table-wrap { margin: 8px 0 4px; overflow-x: hidden; }
+.schedule-table { position: relative; }
+.schedule-hour-line { position: absolute; left: 40px; right: 0; border-top: 1px solid var(--panel2); }
+.schedule-hour-label {
+  position: absolute;
+  left: 0;
+  width: 34px;
+  transform: translateY(-50%);
+  text-align: right;
+  font-size: .66rem;
+  color: var(--muted);
+}
+.schedule-now-line { position: absolute; left: 40px; right: 0; height: 2px; background: var(--ng); z-index: 3; }
+.schedule-now-line::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ng);
+}
+.schedule-block {
+  position: absolute;
+  left: 44px;
+  right: 4px;
+  background: var(--panel);
+  border-left: 3px solid var(--brass);
+  border-radius: 6px;
+  padding: 2px 8px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,.35);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.25;
+}
+.schedule-block-time { font-size: .64rem; color: var(--brass); font-weight: 700; }
+.schedule-block-name, .schedule-block-venue {
+  font-size: .74rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.schedule-block-venue { font-size: .64rem; color: var(--muted); }
+.schedule-gap {
+  position: absolute;
+  left: 44px;
+  right: 4px;
+  text-align: right;
+  font-size: .64rem;
+  color: var(--muted);
+  cursor: pointer;
+  z-index: 4;
+}
+.schedule-gap.ng { color: var(--ng); font-weight: 700; }
 
 .search {
   width: 100%;

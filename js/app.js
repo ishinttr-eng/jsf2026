@@ -11,7 +11,8 @@ const main = document.getElementById("main");
 let currentTab = DAYS.includes(nowInfo().date) ? "my" : "timetable";
 let map = null, markers = new Map(), meMarker = null, routeLayer = null;
 let ttState = { day: "", q: "", venue: "", genre: "" }; // day: "" は「すべての日程」
-let myState = { day: DAYS.includes(nowInfo().date) ? nowInfo().date : DAYS[0] }; // マイタイムテーブルの日付絞り込み
+// マイタイムテーブルの日付絞り込み・表示モード（list=一覧, table=スケジュール表）
+let myState = { day: DAYS.includes(nowInfo().date) ? nowInfo().date : DAYS[0], mode: "list" };
 let expandedVenues = new Set(); // 出演者タブで開いている会場の<details>を再描画後も維持するため
 // detail: {kind:"venue", venueId, day, from} | {kind:"artist", perf} | {kind:"changes"} | {kind:"settings"} | null
 let detail = null;
@@ -617,48 +618,123 @@ function viewMy() {
     }, DAY_LABELS[d])));
   wrap.append(dayTabs);
 
+  const modeTabs = el("div", { class: "day-tabs mode-tabs" },
+    [{ value: "list", label: "リスト" }, { value: "table", label: "スケジュール表" }]
+      .map(({ value, label }) => el("button", {
+        class: `day-tab ${myState.mode === value ? "active" : ""}`,
+        onclick: () => { myState.mode = value; render(); },
+      }, label)));
+  wrap.append(modeTabs);
+
+  const list = favs.filter((p) => p.date === myState.day);
+  if (!list.length) return wrap;
+
+  if (myState.mode === "table") {
+    renderMySchedule(wrap, list, myState.day);
+  } else {
+    renderMyList(wrap, list);
+  }
+  return wrap;
+}
+
+function renderMyList(wrap, list) {
   // 現在時刻に該当する（演奏中、なければ次に始まる）お気に入りへ自動スクロール＋強調表示するための目印
   const info = nowInfo();
   let scrollTarget = null, scrollTargetKind = null;
-  if (DAYS.includes(info.date)) {
-    const todays = favs.filter((p) => p.date === info.date).sort((a, b) => a.startMin - b.startMin);
-    const playing = todays.find((p) => p.startMin <= info.min && info.min < p.endMin);
-    scrollTarget = playing || todays.find((p) => p.startMin > info.min);
+  if (info.date === list[0].date) {
+    const sorted = [...list].sort((a, b) => a.startMin - b.startMin);
+    const playing = sorted.find((p) => p.startMin <= info.min && info.min < p.endMin);
+    scrollTarget = playing || sorted.find((p) => p.startMin > info.min);
     scrollTargetKind = playing ? "playing" : "next";
   }
-  for (const day of [myState.day]) {
-    const list = favs.filter((p) => p.date === day);
-    if (!list.length) continue;
-    wrap.append(el("h2", {}, DAY_LABELS[day]));
-    let prev = null;
-    for (const p of list) {
-      // 前のお気に入りとの間の移動チェック（クリックで地図にその2会場間のルートを表示、横のリンクでGoogleマップも開ける）
-      if (prev) {
-        const need = walkBetween(prev.venueId, p.venueId);
-        const gap = p.startMin - prev.endMin;
-        const prevV = store.venueById.get(prev.venueId), curV = store.venueById.get(p.venueId);
-        const gHref = gmapsWalkUrl(curV.lat, curV.lng, prevV.lat, prevV.lng);
-        const moveRow = (labelClass, text) => el("div", { class: "move-row" },
-          el("button", {
-            class: labelClass, onclick: () => showRouteBetween(prevV.id, curV.id),
-          }, text),
-          el("a", { class: "gmap-link", href: gHref, target: "_blank", rel: "noopener" }, "Googleで開く"));
-        if (gap < 0) {
-          wrap.append(moveRow("warn", `⚠️ 時間が重なっています（会場間 徒歩約${need}分）`));
-        } else if (need > 0) {
-          const ok = need <= gap;
-          wrap.append(moveRow(ok ? "move" : "warn",
-            `${ok ? "🚶" : "⚠️"} 移動 約${need}分（空き${gap}分）${ok ? "" : " — 間に合わない可能性"}`));
-        }
+  wrap.append(el("h2", {}, DAY_LABELS[list[0].date]));
+  let prev = null;
+  for (const p of list) {
+    // 前のお気に入りとの間の移動チェック（クリックで地図にその2会場間のルートを表示、横のリンクでGoogleマップも開ける）
+    if (prev) {
+      const need = walkBetween(prev.venueId, p.venueId);
+      const gap = p.startMin - prev.endMin;
+      const prevV = store.venueById.get(prev.venueId), curV = store.venueById.get(p.venueId);
+      const gHref = gmapsWalkUrl(curV.lat, curV.lng, prevV.lat, prevV.lng);
+      const moveRow = (labelClass, text) => el("div", { class: "move-row" },
+        el("button", {
+          class: labelClass, onclick: () => showRouteBetween(prevV.id, curV.id),
+        }, text),
+        el("a", { class: "gmap-link", href: gHref, target: "_blank", rel: "noopener" }, "Googleで開く"));
+      if (gap < 0) {
+        wrap.append(moveRow("warn", `⚠️ 時間が重なっています（会場間 徒歩約${need}分）`));
+      } else if (need > 0) {
+        const ok = need <= gap;
+        wrap.append(moveRow(ok ? "move" : "warn",
+          `${ok ? "🚶" : "⚠️"} 移動 約${need}分（空き${gap}分）${ok ? "" : " — 間に合わない可能性"}`));
       }
-      const isTarget = scrollTarget && p === scrollTarget;
-      const card = perfCard(p, { walkMin: walkFromHere(p.venueId), highlight: isTarget ? scrollTargetKind : null });
-      if (isTarget) card.dataset.scrollTarget = "true";
-      wrap.append(card);
-      prev = p;
     }
+    const isTarget = scrollTarget && p === scrollTarget;
+    const card = perfCard(p, { walkMin: walkFromHere(p.venueId), highlight: isTarget ? scrollTargetKind : null });
+    if (isTarget) card.dataset.scrollTarget = "true";
+    wrap.append(card);
+    prev = p;
   }
-  return wrap;
+}
+
+const SCHEDULE_START_MIN = 11 * 60; // 開催時間 11:00〜20:00 に合わせた表示範囲
+const SCHEDULE_END_MIN = 20 * 60;
+const SCHEDULE_PX_PER_MIN = 1.6;
+
+// マイタイムテーブルのスケジュール表モード: 縦軸=時刻の1本のタイムライン上に、
+// お気に入りを開始時刻・所要時間に応じたブロックとして配置する
+function renderMySchedule(wrap, list, day) {
+  const startMin = Math.min(SCHEDULE_START_MIN, list[0].startMin);
+  const endMin = Math.max(SCHEDULE_END_MIN, list[list.length - 1].endMin);
+  const height = (endMin - startMin) * SCHEDULE_PX_PER_MIN;
+
+  const container = el("div", { class: "schedule-table" });
+  container.style.height = `${height}px`;
+
+  for (let h = Math.floor(startMin / 60); h <= Math.ceil(endMin / 60); h++) {
+    const top = (h * 60 - startMin) * SCHEDULE_PX_PER_MIN;
+    container.append(
+      el("div", { class: "schedule-hour-line", style: `top:${top}px` }),
+      el("div", { class: "schedule-hour-label", style: `top:${top}px` }, `${h}:00`));
+  }
+
+  const info = nowInfo();
+  if (info.date === day && info.min >= startMin && info.min <= endMin) {
+    container.append(el("div", {
+      class: "schedule-now-line", style: `top:${(info.min - startMin) * SCHEDULE_PX_PER_MIN}px`,
+    }));
+  }
+
+  let prev = null;
+  for (const p of list) {
+    if (prev) {
+      const need = walkBetween(prev.venueId, p.venueId);
+      const gap = p.startMin - prev.endMin;
+      if (need > 0 || gap < 0) {
+        const ok = gap >= 0 && need <= gap;
+        const top = (p.startMin - startMin) * SCHEDULE_PX_PER_MIN - 13;
+        container.append(el("div", {
+          class: `schedule-gap ${ok ? "" : "ng"}`,
+          style: `top:${top}px`,
+          onclick: () => showRouteBetween(prev.venueId, p.venueId),
+        }, ok ? `🚶${need}分` : `⚠️🚶${need}分`));
+      }
+    }
+
+    const v = store.venueById.get(p.venueId);
+    const top = (p.startMin - startMin) * SCHEDULE_PX_PER_MIN;
+    const blockH = Math.max(46, (p.endMin - p.startMin) * SCHEDULE_PX_PER_MIN);
+    container.append(el("div", {
+      class: "schedule-block", style: `top:${top}px; height:${blockH}px`, onclick: () => openArtist(p),
+    },
+      el("div", { class: "schedule-block-time" }, `${p.start}–${p.end}`),
+      el("div", { class: "schedule-block-name" }, p.name),
+      el("div", { class: "schedule-block-venue" }, stageLabel(v))));
+
+    prev = p;
+  }
+
+  wrap.append(el("div", { class: "schedule-table-wrap" }, container));
 }
 
 // ---------- 詳細モーダル（会場・アーティスト） ----------
