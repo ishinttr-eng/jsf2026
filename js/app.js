@@ -617,7 +617,6 @@ function viewMy() {
       class: `day-tab ${myState.day === d ? "active" : ""}`,
       onclick: () => { myState.day = d; render(); },
     }, DAY_LABELS[d])));
-  wrap.append(dayTabs);
 
   const modeTabs = el("div", { class: "day-tabs mode-tabs" },
     [{ value: "list", label: "リスト" }, { value: "table", label: "スケジュール表" }]
@@ -625,7 +624,9 @@ function viewMy() {
         class: `day-tab ${myState.mode === value ? "active" : ""}`,
         onclick: () => { myState.mode = value; render(); },
       }, label)));
-  wrap.append(modeTabs);
+
+  // 日付・表示モードのタブはスクロールしても常に見えるよう上部に固定
+  wrap.append(el("div", { class: "my-tabs-sticky" }, dayTabs, modeTabs));
 
   const list = favs.filter((p) => p.date === myState.day);
   if (!list.length) return wrap;
@@ -778,7 +779,11 @@ function renderMySchedule(wrap, list, day) {
     prev = p;
   }
 
-  wrap.append(el("div", { class: "schedule-table-wrap" }, container));
+  // 4列目以降がある（横スクロールが実際に必要な）時だけoverflow-x:autoにする。
+  // 常時autoにすると、重なりがない多くの場合でも縦スワイプの1回目がこの領域に
+  // 取られてしまい、2回スワイプしないとスクロールしない挙動になっていた
+  const needsHScroll = laidOut.some(({ col, numCols }) => col >= numCols);
+  wrap.append(el("div", { class: `schedule-table-wrap ${needsHScroll ? "scrollable" : ""}` }, container));
 }
 
 // ---------- 詳細モーダル（会場・アーティスト） ----------

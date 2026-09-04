@@ -206,11 +206,20 @@ button.move, button.warn {
 .day-tab.active { background: var(--brass); color: #2b1f05; font-weight: 700; border-color: var(--brass); }
 .day-tab.disabled { opacity: .45; }
 .mode-tabs { margin-top: -2px; }
+.my-tabs-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  padding-top: 12px;
+  margin-top: -12px;
+}
 .mode-tabs .day-tab { font-size: .8rem; padding: 6px; }
 
 /* マイタイムテーブルのスケジュール表モード: 縦軸=時刻の1本のタイムライン。
    時間が重なる予定は最大3列まで横に並べ、4件目以降は横スクロールで見る */
-.schedule-table-wrap { margin: 8px 0 4px; overflow-x: auto; overflow-y: visible; }
+.schedule-table-wrap { margin: 8px 0 4px; overflow-x: visible; overflow-y: visible; }
+.schedule-table-wrap.scrollable { overflow-x: auto; }
 .schedule-table { position: relative; }
 .schedule-hour-line { position: absolute; left: 44px; right: 0; border-top: 1px solid var(--panel2); }
 .schedule-hour-row { position: absolute; left: 0; right: 0; height: 0; pointer-events: none; }
