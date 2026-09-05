@@ -870,6 +870,14 @@ function buildShareUrl(keys) {
   return url.toString();
 }
 
+// 公式サイトの出演ID（カンマ区切り）→ うちのperfKey配列。公式のIDはperformances[].idと
+// そのまま一致するので、該当する演目（K1000のような両日開催は複数件）を変換する
+function keysFromJsfPlanIds(csv) {
+  return csv.split(",").filter(Boolean)
+    .flatMap((id) => store.performances.filter((p) => p.id === id))
+    .map((p) => perfKey(p));
+}
+
 async function shareFavoritesLink() {
   const keys = exportFavorites();
   if (!keys.length) {
@@ -929,6 +937,33 @@ function handleImportFileChange(e) {
     }
   };
   reader.readAsText(file);
+}
+
+// 設定画面に貼り付けられた公式サイトの共有リンク（またはそれを含む共有文章）から取り込む。
+// 例: "定禅寺ジャズフェス2026のマイタイムテーブルです https://www.j-streetjazz.com/...?jsf-plan=K1001,B0604#myplan"
+function importFromPastedLink(text) {
+  const raw = (text || "").trim();
+  if (!raw) return;
+  const urlMatch = raw.match(/https?:\/\/\S+/);
+  let url;
+  try {
+    url = new URL(urlMatch ? urlMatch[0] : raw);
+  } catch {
+    shareNote = "リンクを読み取れませんでした。共有された文章やURLをそのまま貼り付けてください。";
+    renderDetail();
+    return;
+  }
+  const fav = url.searchParams.get("fav");
+  const jsfPlan = url.searchParams.get("jsf-plan");
+  const keys = fav ? fav.split(",").filter(Boolean)
+    : jsfPlan ? keysFromJsfPlanIds(jsfPlan)
+    : [];
+  if (!keys.length) {
+    shareNote = "リンクの中にお気に入り情報が見つかりませんでした。";
+    renderDetail();
+    return;
+  }
+  openImportPrompt(keys);
 }
 
 // perfKey（id__date__start）を人が読める形式に変換。演目が見つからない場合はキーをそのまま表示
@@ -1019,6 +1054,13 @@ function settingsModal() {
   });
   const importLabel = el("label", { class: "btn small file-label" }, "⬆️ ファイルから読み込む", importInput);
 
+  const pasteInput = el("input", {
+    type: "text", class: "search", placeholder: "公式サイトの「予定を共有する」リンクを貼り付け",
+  });
+  const pasteBtn = el("button", {
+    class: "btn small", onclick: () => importFromPastedLink(pasteInput.value),
+  }, "📋 リンクから読み込む");
+
   return el("div", { id: "modal", onclick: (e) => { if (e.target.id === "modal") closeDetail(); } },
     el("div", { class: "modal-body" },
       el("div", { class: "modal-head" },
@@ -1037,6 +1079,8 @@ function settingsModal() {
       el("h2", {}, "🔗 マイタイムテーブルの共有 / バックアップ"),
       el("p", { class: "note" }, "お気に入りを他の端末に移したり、友だちと共有したりできます。"),
       el("div", { class: "walk-row" }, shareBtn, exportBtn, importLabel),
+      el("p", { class: "note" }, "公式サイトのお気に入りページ（マイプラン）の「予定を共有する」リンクも読み込めます。"),
+      el("div", { class: "filter-row" }, pasteInput, pasteBtn),
       shareNote ? el("p", { class: "note" }, shareNote) : null));
 }
 
@@ -1257,9 +1301,7 @@ loadData().then(async () => {
   // 公式のIDはうちのperformances[].idとそのまま一致するので、該当する演目をperfKeyに変換して取り込む
   const jsfPlan = params.get("jsf-plan");
   const keys = fav ? fav.split(",").filter(Boolean)
-    : jsfPlan ? jsfPlan.split(",").filter(Boolean)
-      .flatMap((id) => store.performances.filter((p) => p.id === id))
-      .map((p) => perfKey(p))
+    : jsfPlan ? keysFromJsfPlanIds(jsfPlan)
     : [];
   if (fav || jsfPlan) {
     history.replaceState(null, "", location.pathname + location.hash);

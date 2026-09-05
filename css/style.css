@@ -296,6 +296,7 @@ button.move, button.warn {
   margin: 4px 0;
 }
 .filter-row { display: flex; gap: 8px; margin: 6px 0; }
+.filter-row .search { flex: 1; min-width: 0; width: auto; }
 .select {
   flex: 1;
   min-width: 0;
