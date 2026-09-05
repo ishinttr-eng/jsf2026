@@ -1162,6 +1162,12 @@ function artistModal(p) {
       p.intro
         ? el("p", { class: "intro" }, p.intro)
         : el("p", { class: "note" }, "紹介文はありません"),
+      p.awardEntry && p.awardEntry !== "参加しない"
+        ? el("a", {
+          class: "btn small", target: "_blank", rel: "noopener",
+          href: `https://www.j-streetjazz.com/event/35th/performers/?jsf-plan=${encodeURIComponent(p.id)}#myplan`,
+        }, `🏆 公式サイトで${p.awardEntry.replace(/^「|」で参加$/g, "")}に投票する`)
+        : null,
       el("a", {
         class: "btn go", target: "_blank", rel: "noopener",
         href: gmapsWalkUrl(v.lat, v.lng, store.location?.lat, store.location?.lng),
