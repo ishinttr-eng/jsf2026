@@ -3,7 +3,7 @@
 import { DAYS, DAY_LABELS, fmtMin, normalize, perfKey, el, gmapsWalkUrl, haversineM } from "./util.js";
 import {
   store, loadData, walkBetween, walkFromHere, getRoute, toggleFavorite, nowInfo,
-  requestLocation, simulateLocation, clearLocation, exportFavorites, importFavorites,
+  requestLocation, simulateLocation, clearLocation, exportFavorites, importFavorites, loadWeather,
 } from "./store.js";
 
 const main = document.getElementById("main");
@@ -82,6 +82,30 @@ function stageLabel(v) {
   return `S${String(v.stageNo).padStart(2, "0")} ${shortVenueName(v)}`;
 }
 
+// WMO weather_code（Open-Meteo）→ 絵文字・日本語ラベル
+const WEATHER_ICONS = {
+  0: ["☀️", "快晴"], 1: ["🌤️", "晴れ"], 2: ["⛅", "晴れ時々曇り"], 3: ["☁️", "曇り"],
+  45: ["🌫️", "霧"], 48: ["🌫️", "霧"],
+  51: ["🌦️", "霧雨"], 53: ["🌦️", "霧雨"], 55: ["🌦️", "霧雨"], 56: ["🌦️", "霧雨"], 57: ["🌦️", "霧雨"],
+  61: ["🌧️", "雨"], 63: ["🌧️", "雨"], 65: ["🌧️", "強い雨"], 66: ["🌧️", "雨"], 67: ["🌧️", "雨"],
+  71: ["🌨️", "雪"], 73: ["🌨️", "雪"], 75: ["🌨️", "雪"], 77: ["🌨️", "雪"],
+  80: ["🌧️", "にわか雨"], 81: ["🌧️", "にわか雨"], 82: ["🌧️", "強いにわか雨"],
+  85: ["🌨️", "にわか雪"], 86: ["🌨️", "にわか雪"],
+  95: ["⛈️", "雷雨"], 96: ["⛈️", "雷雨"], 99: ["⛈️", "雷雨"],
+};
+
+// 開催日の天気予報（会場エリア共通・Open-Meteo）。未取得時は何も表示しない
+function weatherRow() {
+  if (!store.weather) return null;
+  const items = DAYS.filter((d) => store.weather[d]).map((d) => {
+    const w = store.weather[d];
+    const [icon, label] = WEATHER_ICONS[w.code] || ["", ""];
+    return el("span", { class: "weather-day" },
+      `${DAY_LABELS[d]} ${icon}${label} ${Math.round(w.tMax)}°/${Math.round(w.tMin)}° 💧${w.pop}%`);
+  });
+  return items.length ? el("div", { class: "weather-row" }, items) : null;
+}
+
 // 「演奏中」タブで設定した時刻シミュレーション中であることを他の画面でも分かるように表示するバッジ
 function simBadge() {
   if (!store.simNow) return null;
@@ -152,6 +176,8 @@ function viewNow() {
   }
 
   wrap.append(locationRow());
+  const weather = weatherRow();
+  if (weather) wrap.append(weather);
 
   if (!DAYS.includes(info.date)) {
     wrap.append(el("p", { class: "note" },
@@ -1224,6 +1250,9 @@ loadData().then(async () => {
     (ver ? ` / ${ver}` : "");
   updateChangesBadge();
   render();
+
+  // 天気予報は外部API依存で遅い/失敗し得るため、他の表示をブロックせず取得できたら追って再描画
+  loadWeather().then(() => { if (currentTab === "now") render(); });
 
   // 共有リンク（?fav=...）で開かれた場合、URLを綺麗にしてから取り込み確認モーダルを出す
   const params = new URLSearchParams(location.search);

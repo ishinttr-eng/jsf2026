@@ -1,6 +1,6 @@
 // データ読み込み・お気に入り・現在地などの状態管理
 
-import { toMin, walkMinFromCoords, decodePolyline } from "./util.js";
+import { toMin, walkMinFromCoords, decodePolyline, DAYS } from "./util.js";
 
 const FAV_KEY = "jsf.favorites";
 
@@ -21,6 +21,7 @@ export const store = {
   locationSimulated: false, // locationがシミュレーション（会場選択）によるものか
   locationLabel: "",     // シミュレーション時の表示ラベル（会場名など）
   simNow: null,          // {date, min} 時刻シミュレーション（null=実時刻）
+  weather: null,         // {"2026-09-12": {code, tMax, tMin, pop}, ...} 開催日の天気予報（未取得・失敗時はnull）
 };
 
 export async function loadData() {
@@ -153,4 +154,34 @@ export function clearLocation() {
   store.location = null;
   store.locationSimulated = false;
   store.locationLabel = "";
+}
+
+// 会場エリアの中心付近（勾当台公園〜定禅寺通）の代表地点。全会場が徒歩圏内に収まり
+// 気象モデルの解像度でも差が出ないため、会場ごとではなくこの1地点だけで取得する
+const WEATHER_LAT = 38.2646, WEATHER_LNG = 140.8694;
+
+// 開催日（DAYS）の天気予報をOpen-Meteo（APIキー不要）から取得。失敗しても他機能を止めない
+export async function loadWeather() {
+  try {
+    const url = "https://api.open-meteo.com/v1/forecast"
+      + `?latitude=${WEATHER_LAT}&longitude=${WEATHER_LNG}&timezone=Asia%2FTokyo`
+      + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+      + `&start_date=${DAYS[0]}&end_date=${DAYS[DAYS.length - 1]}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const d = await res.json();
+    const days = d?.daily?.time || [];
+    const byDate = {};
+    days.forEach((date, i) => {
+      byDate[date] = {
+        code: d.daily.weather_code[i],
+        tMax: d.daily.temperature_2m_max[i],
+        tMin: d.daily.temperature_2m_min[i],
+        pop: d.daily.precipitation_probability_max[i],
+      };
+    });
+    store.weather = byDate;
+  } catch {
+    // 天気予報は補助情報なので、取得失敗時は非表示のままにする
+  }
 }
