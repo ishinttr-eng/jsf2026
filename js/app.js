@@ -94,18 +94,6 @@ const WEATHER_ICONS = {
   95: ["⛈️", "雷雨"], 96: ["⛈️", "雷雨"], 99: ["⛈️", "雷雨"],
 };
 
-// 開催日の天気予報（会場エリア共通・Open-Meteo）。未取得時は何も表示しない
-function weatherRow() {
-  if (!store.weather) return null;
-  const items = DAYS.filter((d) => store.weather.daily[d]).map((d) => {
-    const w = store.weather.daily[d];
-    const [icon, label] = WEATHER_ICONS[w.code] || ["", ""];
-    return el("span", { class: "weather-day" },
-      `${DAY_LABELS[d]} ${icon}${label} ${Math.round(w.tMax)}°/${Math.round(w.tMin)}° 💧${w.pop}%`);
-  });
-  return items.length ? el("div", { class: "weather-row" }, items) : null;
-}
-
 // 演目カード用: 開始時間帯の天気を短く（アイコン＋気温＋降水確率）。未取得時はnull
 function perfWeatherBadge(p) {
   const w = weatherAt(p.date, p.startMin);
@@ -186,8 +174,6 @@ function viewNow() {
   }
 
   wrap.append(locationRow());
-  const weather = weatherRow();
-  if (weather) wrap.append(weather);
 
   if (!DAYS.includes(info.date)) {
     wrap.append(el("p", { class: "note" },

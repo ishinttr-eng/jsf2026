@@ -165,19 +165,6 @@ button.move, button.warn {
   padding: 8px 10px;
   margin: 0 0 10px;
 }
-.weather-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  font-size: .82rem;
-  color: var(--muted);
-  background: var(--panel2);
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin: 0 0 10px;
-}
-.weather-day { white-space: nowrap; }
-
 .sim-badge-map {
   position: absolute;
   top: 10px;

@@ -21,9 +21,8 @@ export const store = {
   locationSimulated: false, // locationがシミュレーション（会場選択）によるものか
   locationLabel: "",     // シミュレーション時の表示ラベル（会場名など）
   simNow: null,          // {date, min} 時刻シミュレーション（null=実時刻）
-  // 開催日の天気予報（未取得・失敗時はnull）
-  // { daily: {"2026-09-12": {code, tMax, tMin, pop}, ...},
-  //   hourly: {"2026-09-12T11": {code, temp, pop}, ...} }
+  // 開催日の時間別天気予報（未取得・失敗時はnull）
+  // { hourly: {"2026-09-12T11": {code, temp, pop}, ...} }
   weather: null,
 };
 
@@ -163,28 +162,17 @@ export function clearLocation() {
 // 気象モデルの解像度でも差が出ないため、会場ごとではなくこの1地点だけで取得する
 const WEATHER_LAT = 38.2646, WEATHER_LNG = 140.8694;
 
-// 開催日（DAYS）の天気予報をOpen-Meteo（APIキー不要）から取得。失敗しても他機能を止めない。
-// 日次（演奏中タブの概況表示用）と時間別（演目ごとの開始時間帯の天気表示用）を1回のリクエストで取得する
+// 開催日（DAYS）の時間別天気予報をOpen-Meteo（APIキー不要）から取得し、
+// 演目ごとの開始時間帯の天気表示に使う。失敗しても他機能を止めない
 export async function loadWeather() {
   try {
     const url = "https://api.open-meteo.com/v1/forecast"
       + `?latitude=${WEATHER_LAT}&longitude=${WEATHER_LNG}&timezone=Asia%2FTokyo`
-      + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
       + "&hourly=weather_code,temperature_2m,precipitation_probability"
       + `&start_date=${DAYS[0]}&end_date=${DAYS[DAYS.length - 1]}`;
     const res = await fetch(url);
     if (!res.ok) return;
     const d = await res.json();
-
-    const daily = {};
-    (d?.daily?.time || []).forEach((date, i) => {
-      daily[date] = {
-        code: d.daily.weather_code[i],
-        tMax: d.daily.temperature_2m_max[i],
-        tMin: d.daily.temperature_2m_min[i],
-        pop: d.daily.precipitation_probability_max[i],
-      };
-    });
 
     const hourly = {};
     (d?.hourly?.time || []).forEach((t, i) => {
@@ -195,7 +183,7 @@ export async function loadWeather() {
       };
     });
 
-    store.weather = { daily, hourly };
+    store.weather = { hourly };
   } catch {
     // 天気予報は補助情報なので、取得失敗時は非表示のままにする
   }
