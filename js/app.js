@@ -18,6 +18,16 @@ let expandedVenues = new Set(); // 出演者タブで開いている会場の<de
 let detail = null;
 const CHANGES_SEEN_KEY = "jsf.changesSeenAt";
 let shareNote = ""; // 共有リンク作成・ファイル読み込みの結果メッセージ（設定画面に一時表示）
+
+// 文字サイズ設定（"standard" | "large"）。index.html側の即時反映スクリプトと同じキーを使う
+const FONT_SIZE_KEY = "jsf.fontSize";
+let fontSize = localStorage.getItem(FONT_SIZE_KEY) === "large" ? "large" : "standard";
+function setFontSize(size) {
+  fontSize = size;
+  document.documentElement.setAttribute("data-font-size", size);
+  localStorage.setItem(FONT_SIZE_KEY, size);
+  renderDetail();
+}
 // activeRoute: {fromId, toId, fromLabel, toLabel} | {fromHere: true, toId, toLabel} | {myRoute: true} | null
 let activeRoute = { myRoute: true }; // マップを開いたときのデフォルトはマイルートモード
 let myRouteIndex = 0; // マイルートで現在フォーカスしている区間（上下スワイプで移動）
@@ -1066,6 +1076,16 @@ function settingsModal() {
       el("div", { class: "modal-head" },
         el("h2", {}, "⚙️ 設定"),
         el("button", { class: "close", onclick: closeDetail }, "✕")),
+      el("h2", {}, "文字サイズ"),
+      el("div", { class: "day-tabs" },
+        el("button", {
+          class: `day-tab ${fontSize === "standard" ? "active" : ""}`,
+          onclick: () => setFontSize("standard"),
+        }, "標準"),
+        el("button", {
+          class: `day-tab ${fontSize === "large" ? "active" : ""}`,
+          onclick: () => setFontSize("large"),
+        }, "大")),
       el("h2", {}, "時刻シミュレーション"),
       el("p", { class: "note" }, info.simulated
         ? `🕐 ${DAY_LABELS[info.date] || info.date} ${fmtMin(info.min)}（シミュレーション中）`
