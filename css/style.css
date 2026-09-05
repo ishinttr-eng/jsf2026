@@ -303,7 +303,8 @@ button.move, button.warn {
   border: 1px solid var(--panel2);
   background: var(--panel);
   color: var(--text);
-  font-size: .95rem;
+  /* 16px未満だとiOS Safariがフォーカス時にページ全体を自動ズームしてしまうため16px以上を維持 */
+  font-size: 16px;
   margin: 4px 0;
 }
 .filter-row { display: flex; gap: 8px; margin: 6px 0; }
