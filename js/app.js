@@ -1222,8 +1222,15 @@ loadData().then(async () => {
   // 共有リンク（?fav=...）で開かれた場合、URLを綺麗にしてから取り込み確認モーダルを出す
   const params = new URLSearchParams(location.search);
   const fav = params.get("fav");
-  if (fav) {
-    const keys = fav.split(",").filter(Boolean);
+  // 公式サイトの「予定を共有する」リンク（?jsf-plan=出演ID,出演ID,...）にも対応。
+  // 公式のIDはうちのperformances[].idとそのまま一致するので、該当する演目をperfKeyに変換して取り込む
+  const jsfPlan = params.get("jsf-plan");
+  const keys = fav ? fav.split(",").filter(Boolean)
+    : jsfPlan ? jsfPlan.split(",").filter(Boolean)
+      .flatMap((id) => store.performances.filter((p) => p.id === id))
+      .map((p) => perfKey(p))
+    : [];
+  if (fav || jsfPlan) {
     history.replaceState(null, "", location.pathname + location.hash);
     if (keys.length) openImportPrompt(keys);
   }
