@@ -138,6 +138,7 @@ button.move, button.warn {
 .badge.ok { background: var(--ok); color: #06281a; font-weight: 700; }
 .badge.ng { background: var(--ng); color: #2b0c0c; font-weight: 700; }
 .badge.award { background: var(--brass); color: #2b1f05; font-weight: 700; }
+.badge.weather { white-space: nowrap; }
 .badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }
 
 .sim-row, .loc-row {

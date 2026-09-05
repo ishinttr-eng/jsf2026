@@ -3,7 +3,7 @@
 import { DAYS, DAY_LABELS, fmtMin, normalize, perfKey, el, gmapsWalkUrl, haversineM } from "./util.js";
 import {
   store, loadData, walkBetween, walkFromHere, getRoute, toggleFavorite, nowInfo,
-  requestLocation, simulateLocation, clearLocation, exportFavorites, importFavorites, loadWeather,
+  requestLocation, simulateLocation, clearLocation, exportFavorites, importFavorites, loadWeather, weatherAt,
 } from "./store.js";
 
 const main = document.getElementById("main");
@@ -97,13 +97,22 @@ const WEATHER_ICONS = {
 // 開催日の天気予報（会場エリア共通・Open-Meteo）。未取得時は何も表示しない
 function weatherRow() {
   if (!store.weather) return null;
-  const items = DAYS.filter((d) => store.weather[d]).map((d) => {
-    const w = store.weather[d];
+  const items = DAYS.filter((d) => store.weather.daily[d]).map((d) => {
+    const w = store.weather.daily[d];
     const [icon, label] = WEATHER_ICONS[w.code] || ["", ""];
     return el("span", { class: "weather-day" },
       `${DAY_LABELS[d]} ${icon}${label} ${Math.round(w.tMax)}°/${Math.round(w.tMin)}° 💧${w.pop}%`);
   });
   return items.length ? el("div", { class: "weather-row" }, items) : null;
+}
+
+// 演目カード用: 開始時間帯の天気を短く（アイコン＋気温＋降水確率）。未取得時はnull
+function perfWeatherBadge(p) {
+  const w = weatherAt(p.date, p.startMin);
+  if (!w) return null;
+  const [icon] = WEATHER_ICONS[w.code] || ["🌈"];
+  return el("span", { class: "badge weather", title: "開始時間帯の天気予報" },
+    `${icon} ${Math.round(w.temp)}° 💧${w.pop}%`);
 }
 
 // 「演奏中」タブで設定した時刻シミュレーション中であることを他の画面でも分かるように表示するバッジ
@@ -148,6 +157,7 @@ function perfCard(p, opts = {}) {
         opts.highlight === "playing" ? "🔴 演奏中" : "▶ 次はここ") : null,
       el("span", { class: "time" }, `${p.start}–${p.end}`),
       opts.dayLabel ? el("span", { class: "day-tag" }, DAY_LABELS[p.date]) : null,
+      perfWeatherBadge(p),
       favButton(p)),
     el("div", { class: "name" }, p.name),
     meta.length ? el("div", { class: "meta" }, meta.join(" ・ ")) : null,
@@ -1252,7 +1262,7 @@ loadData().then(async () => {
   render();
 
   // 天気予報は外部API依存で遅い/失敗し得るため、他の表示をブロックせず取得できたら追って再描画
-  loadWeather().then(() => { if (currentTab === "now") render(); });
+  loadWeather().then(() => render());
 
   // 共有リンク（?fav=...）で開かれた場合、URLを綺麗にしてから取り込み確認モーダルを出す
   const params = new URLSearchParams(location.search);
