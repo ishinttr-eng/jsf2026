@@ -38,6 +38,21 @@
      "new": "★特別企画"
     }
    ]
+  },
+  {
+   "checkedAt": "2026-09-08T16:01:36Z",
+   "sourceUpdatedAt": "2026-09-08T15:57:24.596Z",
+   "items": [
+    {
+     "kind": "removed",
+     "date": "2026-09-13",
+     "venueId": "S-35",
+     "venueName": "仙台赤門短期大学国分町サテライト",
+     "name": "KEN AKASHI",
+     "start": "12:30",
+     "end": "13:00"
+    }
+   ]
   }
  ]
 }

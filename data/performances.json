@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-09-08T10:37:24.334Z",
+ "updatedAt": "2026-09-08T15:57:24.596Z",
  "performances": [
   {
    "id": "K1001",
@@ -9674,21 +9674,6 @@
    "region": "福島県郡山市",
    "intro": "郡山市を中心に活動している60代男性3人組。「故郷」「家族」「復興」等がテーマの全曲オリジナル",
    "awardEntry": "「ノリノリ部門」で参加",
-   "isU25": false
-  },
-  {
-   "id": "B0452",
-   "name": "KEN AKASHI",
-   "kana": "ケンアカシ",
-   "venueId": "S-35",
-   "date": "2026-09-13",
-   "start": "12:30",
-   "end": "13:00",
-   "order": 3,
-   "genre": "ソウル・R&B",
-   "region": "東京",
-   "intro": "Sam Cooke, Otis ReddingなどのSoul Classicsをギターの弾き語りで～",
-   "awardEntry": "「しっとり部門」で参加",
    "isU25": false
   },
   {
