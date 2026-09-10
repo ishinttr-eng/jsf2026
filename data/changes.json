@@ -53,6 +53,30 @@
      "end": "13:00"
     }
    ]
+  },
+  {
+   "checkedAt": "2026-09-10T10:40:16Z",
+   "sourceUpdatedAt": "2026-09-10T10:37:24.319Z",
+   "items": [
+    {
+     "kind": "removed",
+     "date": "2026-09-12",
+     "venueId": "S-43",
+     "venueName": "ハピナ名掛丁",
+     "name": "小野寺美春",
+     "start": "11:45",
+     "end": "12:15"
+    },
+    {
+     "kind": "removed",
+     "date": "2026-09-12",
+     "venueId": "S-15",
+     "venueName": "西公園 遊具広場",
+     "name": "Ps",
+     "start": "17:00",
+     "end": "17:30"
+    }
+   ]
   }
  ]
 }
