@@ -52,6 +52,21 @@ function showRouteFromHere(toId) {
 // マップの各ルート線・凡例ドットに使う色。ステージ間（区間）ごとに順番に割り当てる
 const ROUTE_COLORS = ["#ff2f92", "#3ddc84", "#3f7dff", "#ffb703", "#a78bfa", "#f97316", "#22d3ee", "#f43f5e"];
 
+// ルート線の始点（丸いリング）・終点（雫形のピン）を見分けやすくするためのアイコン
+function endpointIcon(kind, color) {
+  return kind === "start"
+    ? L.divIcon({
+      className: "route-endpoint start",
+      html: `<span style="--dot-color:${color}"></span>`,
+      iconSize: [14, 14], iconAnchor: [7, 7],
+    })
+    : L.divIcon({
+      className: "route-endpoint end",
+      html: `<span style="--dot-color:${color}"></span>`,
+      iconSize: [20, 20], iconAnchor: [10, 19],
+    });
+}
+
 // 現在時刻（シミュレーション込み）をもとに、マイタイムテーブルでまだ終了していない移動区間を
 // すべて求める（現在地/直前のお気に入り → 次のお気に入り → その次…と連なる区間の配列）
 function computeMyRouteSegments() {
@@ -448,7 +463,10 @@ function drawActiveRoute(wrap) {
     const dash = isApprox ? "7 9" : null;
     const halo = L.polyline(coords, { color: "#ffffff", weight: isApprox ? 7 : 9, opacity: 0.95, dashArray: dash });
     const line = L.polyline(coords, { color, weight: isApprox ? 3 : 5, opacity: 1, dashArray: dash });
-    routeLayer = L.featureGroup([halo, line]).addTo(map);
+    // 始点＝丸いリング、終点＝雫形のピンで、見た目の形から一目で方向がわかるようにする
+    const startMarker = L.marker(coords[0], { icon: endpointIcon("start", color), interactive: false, zIndexOffset: 1000 });
+    const endMarker = L.marker(coords[coords.length - 1], { icon: endpointIcon("end", color), interactive: false, zIndexOffset: 1000 });
+    routeLayer = L.featureGroup([halo, line, startMarker, endMarker]).addTo(map);
     map.fitBounds(routeLayer.getBounds(), { padding: [48, 48] });
   }
 
@@ -495,13 +513,18 @@ function drawMyRouteSegments(wrap, closeBtn) {
       coords = [[store.location.lat, store.location.lng], [to.lat, to.lng]];
     }
 
-    let halo = null, line = null;
+    let halo = null, line = null, startMarker = null, endMarker = null;
     if (coords) {
       const dash = precomputed ? null : "7 9";
       halo = L.polyline(coords, { color: "#ffffff", dashArray: dash });
       line = L.polyline(coords, { color, dashArray: dash });
+      // 始点＝丸いリング、終点＝雫形のピンで区間の向きを見分けやすくする（区間の色に合わせる）
+      startMarker = L.marker(coords[0], { icon: endpointIcon("start", color), interactive: false, zIndexOffset: 1000 });
+      endMarker = L.marker(coords[coords.length - 1], { icon: endpointIcon("end", color), interactive: false, zIndexOffset: 1000 });
       routeLayer.addLayer(halo);
       routeLayer.addLayer(line);
+      routeLayer.addLayer(startMarker);
+      routeLayer.addLayer(endMarker);
     }
 
     const fromLabel = seg.fromId ? stageLabel(from) : (from ? "現在地" : "現在地（未取得）");
@@ -510,7 +533,7 @@ function drawMyRouteSegments(wrap, closeBtn) {
     else if (precomputed) legText = `🚶約${precomputed.durMin}分（${precomputed.distM}m）`;
     else legText = `📏約${Math.round(haversineM(coords[0][0], coords[0][1], coords[1][0], coords[1][1]))}m`;
 
-    return { seg, to, from, coords, halo, line, fromLabel, legText };
+    return { seg, to, from, coords, halo, line, startMarker, endMarker, fromLabel, legText };
   });
 
   // フォーカス中の区間だけ太く・不透明に、他は細く・薄くして「今どの線か」を一目で分かるようにする
@@ -520,6 +543,8 @@ function drawMyRouteSegments(wrap, closeBtn) {
       const focused = i === idx;
       s.halo.setStyle({ weight: focused ? 9 : 7, opacity: focused ? 0.95 : 0.85 });
       s.line.setStyle({ weight: focused ? 5 : 4, opacity: focused ? 1 : 0.85 });
+      s.startMarker.setOpacity(focused ? 1 : 0.6);
+      s.endMarker.setOpacity(focused ? 1 : 0.6);
       if (focused) s.line.bringToFront();
     });
   };

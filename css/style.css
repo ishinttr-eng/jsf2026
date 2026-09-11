@@ -409,6 +409,24 @@ summary {
 }
 .map-mode-btn { margin-top: 6px; }
 .map-mode-btn.active { background: var(--brass); border-color: rgba(0,0,0,.4); }
+/* ルート線の始点・終点マーカー: 始点=丸いリング、終点=雫形のピンで形から見分ける */
+.route-endpoint span { display: block; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.route-endpoint.start span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--dot-color, #333);
+}
+.route-endpoint.end span {
+  width: 20px;
+  height: 20px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--dot-color, #333);
+  border: 2px solid #fff;
+}
+
 .leaflet-tooltip {
   background: var(--panel);
   color: var(--text);
