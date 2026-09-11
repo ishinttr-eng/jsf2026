@@ -3,6 +3,7 @@
 import { toMin, walkMinFromCoords, decodePolyline, DAYS } from "./util.js";
 
 const FAV_KEY = "jsf.favorites";
+const REVIEW_KEY = "jsf.reviews";
 
 export const store = {
   venues: [],            // [{id, stageNo, name, lat, lng, days}]
@@ -17,6 +18,7 @@ export const store = {
   checkedAt: "",         // うちのシステムが直近にチェックした時刻（差分の有無に関わらず定期更新）
   changes: [],           // [{checkedAt, sourceUpdatedAt, items:[...]}] 出演者変更の検出履歴（新しい順）
   favorites: new Set(JSON.parse(localStorage.getItem(FAV_KEY) || "[]")),
+  reviews: new Map(Object.entries(JSON.parse(localStorage.getItem(REVIEW_KEY) || "{}"))), // perfKey -> {rating(0-5), note, updatedAt}
   location: null,        // {lat, lng} 現在地（実GPSまたはシミュレーション）
   locationSimulated: false, // locationがシミュレーション（会場選択）によるものか
   locationLabel: "",     // シミュレーション時の表示ラベル（会場名など）
@@ -107,6 +109,22 @@ export function toggleFavorite(perfId) {
   if (store.favorites.has(perfId)) store.favorites.delete(perfId);
   else store.favorites.add(perfId);
   saveFavorites();
+}
+
+function saveReviews() {
+  localStorage.setItem(REVIEW_KEY, JSON.stringify(Object.fromEntries(store.reviews)));
+}
+
+export function getReview(perfKeyStr) {
+  return store.reviews.get(perfKeyStr) || null;
+}
+
+// rating=0かつnoteが空なら削除（未評価に戻す）、それ以外は保存
+export function setReview(perfKeyStr, { rating, note }) {
+  const trimmed = (note || "").trim();
+  if (!rating && !trimmed) store.reviews.delete(perfKeyStr);
+  else store.reviews.set(perfKeyStr, { rating, note: trimmed, updatedAt: new Date().toISOString() });
+  saveReviews();
 }
 
 // 現在のお気に入り（perfKey文字列の配列）をエクスポート用にそのまま返す

@@ -4,6 +4,7 @@ import { DAYS, DAY_LABELS, fmtMin, normalize, perfKey, el, gmapsWalkUrl, haversi
 import {
   store, loadData, walkBetween, walkFromHere, getRoute, toggleFavorite, nowInfo,
   requestLocation, simulateLocation, clearLocation, exportFavorites, importFavorites, loadWeather, weatherAt,
+  getReview, setReview,
 } from "./store.js";
 
 const main = document.getElementById("main");
@@ -289,8 +290,10 @@ function viewTimetable() {
       return o;
     }));
 
+  const reviewsLink = el("button", { class: "btn small reviews-link", onclick: openReviews }, "📝 感想・評価の一覧");
+
   const listBox = el("div", {});
-  wrap.append(dayTabs, search, el("div", { class: "filter-row" }, venueSel, genreSel), listBox);
+  wrap.append(dayTabs, search, el("div", { class: "filter-row" }, venueSel, genreSel), reviewsLink, listBox);
   renderTTList(listBox);
   return wrap;
 }
@@ -873,6 +876,11 @@ function openImportPrompt(keys) {
   renderDetail();
 }
 
+function openReviews() {
+  detail = { kind: "reviews" };
+  renderDetail();
+}
+
 function closeDetail() {
   detail = null;
   renderDetail();
@@ -886,6 +894,7 @@ function renderDetail() {
     : detail.kind === "artist" ? artistModal(detail.perf)
     : detail.kind === "changes" ? changesModal()
     : detail.kind === "import" ? importModal(detail)
+    : detail.kind === "reviews" ? reviewsModal()
     : settingsModal();
   document.body.append(modal);
   // 会場のタイムテーブルを開いた時、演奏中の項目があれば自動でそこまでスクロール
@@ -1001,13 +1010,18 @@ function importFromPastedLink(text) {
   openImportPrompt(keys);
 }
 
-// perfKey（id__date__start）を人が読める形式に変換。演目が見つからない場合はキーをそのまま表示
-function perfKeyLabel(key) {
+// perfKey（id__date__start）から元の演目を逆引き（見つからなければnull）
+function perfFromKey(key) {
   const [id, date, start] = key.split("__");
-  const p = store.performances.find((x) => x.id === id && x.date === date && x.start === start);
+  return store.performances.find((x) => x.id === id && x.date === date && x.start === start) || null;
+}
+
+// perfKeyを人が読める形式に変換。演目が見つからない場合はキーをそのまま表示
+function perfKeyLabel(key) {
+  const p = perfFromKey(key);
   if (!p) return key;
   const v = store.venueById.get(p.venueId);
-  return `${DAY_LABELS[date] || date} ${start}　${p.name}${v ? `（${shortVenueName(v)}）` : ""}`;
+  return `${DAY_LABELS[p.date] || p.date} ${p.start}　${p.name}${v ? `（${shortVenueName(v)}）` : ""}`;
 }
 
 function importModal(d) {
@@ -1031,6 +1045,37 @@ function importModal(d) {
         el("button", { class: "btn small", onclick: () => doImport("merge") }, "今のリストに追加する"),
         el("button", { class: "btn small", onclick: () => doImport("replace") }, "置き換える"),
         el("button", { class: "btn small", onclick: closeDetail }, "キャンセル"))));
+}
+
+// 感想・評価を記録した演目の一覧（新しく更新した順）。演目データが見つからないものは除外
+function reviewsModal() {
+  const entries = [...store.reviews.entries()]
+    .map(([key, r]) => ({ key, ...r, perf: perfFromKey(key) }))
+    .filter((r) => r.perf)
+    .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+
+  const rows = entries.length
+    ? entries.map(reviewRow)
+    : el("p", { class: "note" }, "まだ感想・評価は登録されていません。出演者の詳細画面（📝 感想・評価）から記録できます。");
+
+  return el("div", { id: "modal", onclick: (e) => { if (e.target.id === "modal") closeDetail(); } },
+    el("div", { class: "modal-body" },
+      el("div", { class: "modal-head" },
+        el("h2", {}, "📝 感想・評価の一覧"),
+        el("button", { class: "close", onclick: closeDetail }, "✕")),
+      el("div", { class: "modal-list" }, rows)));
+}
+
+function reviewRow(r) {
+  const p = r.perf;
+  const v = store.venueById.get(p.venueId);
+  return el("div", { class: "card", onclick: () => openArtist(p) },
+    el("div", { class: "card-head" },
+      el("span", { class: "time" }, `${DAY_LABELS[p.date]} ${p.start}`),
+      r.rating ? el("span", { class: "review-stars-mini" }, "★".repeat(r.rating) + "☆".repeat(5 - r.rating)) : null),
+    el("div", { class: "name" }, p.name),
+    el("div", { class: "venue-line" }, `📍 ${venueLabel(v).replace(/ supported by.*$/i, "")}`),
+    r.note ? el("div", { class: "review-note-preview" }, r.note) : null);
 }
 
 function settingsModal() {
@@ -1282,7 +1327,39 @@ function artistModal(p) {
       el("a", {
         class: "btn go", target: "_blank", rel: "noopener",
         href: gmapsWalkUrl(v.lat, v.lng, store.location?.lat, store.location?.lng),
-      }, "この会場へ行く")));
+      }, "この会場へ行く"),
+      reviewSection(p)));
+}
+
+// 聴いた演目の感想メモ・評価（★1〜5）を記録する欄。あとで「📝 感想・評価の一覧」からまとめて見られる
+function reviewSection(p) {
+  const key = perfKey(p);
+  const existing = getReview(key) || { rating: 0, note: "" };
+  let rating = existing.rating;
+
+  const starRow = el("div", { class: "star-row" });
+  const noteInput = el("textarea", {
+    class: "review-note", rows: "3", placeholder: "感想メモ（自由記述）",
+    oninput: save,
+  }, existing.note);
+
+  function save() {
+    setReview(key, { rating, note: noteInput.value });
+  }
+
+  function renderStars() {
+    starRow.replaceChildren(...[1, 2, 3, 4, 5].map((n) => el("button", {
+      class: `star-btn ${n <= rating ? "on" : ""}`,
+      "aria-label": `評価${n}`,
+      onclick: () => { rating = rating === n ? 0 : n; renderStars(); save(); },
+    }, n <= rating ? "★" : "☆")));
+  }
+  renderStars();
+
+  return el("div", { class: "review-box" },
+    el("h2", {}, "📝 感想・評価"),
+    starRow,
+    noteInput);
 }
 
 // ---------- タブ・描画 ----------

@@ -538,6 +538,41 @@ summary {
 .intro { font-size: .85rem; line-height: 1.7; color: var(--text); white-space: pre-wrap; margin: 12px 0; }
 .fav.big { font-size: 1.5rem; }
 
+/* 感想・評価 */
+.reviews-link { margin: 4px 0 8px; }
+.review-box { margin-top: 18px; }
+.star-row { display: flex; gap: 4px; margin: 4px 0 8px; }
+.star-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 2px;
+  cursor: pointer;
+}
+.star-btn.on { color: var(--brass); }
+.review-note {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--panel2);
+  border: 1px solid var(--panel2);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px; /* iOS Safariのフォーカス時自動ズームを防止 */
+  padding: 8px 10px;
+  resize: vertical;
+}
+.review-stars-mini { font-size: .78rem; color: var(--brass); white-space: nowrap; }
+.review-note-preview {
+  font-size: .78rem;
+  color: var(--muted);
+  margin-top: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .changes-entry { margin: 14px 0; }
 .changes-entry-head {
   display: flex;
