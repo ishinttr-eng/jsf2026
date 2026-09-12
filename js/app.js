@@ -4,13 +4,17 @@ import { DAYS, DAY_LABELS, fmtMin, normalize, perfKey, el, gmapsWalkUrl, haversi
 import {
   store, loadData, walkBetween, walkFromHere, getRoute, toggleFavorite, nowInfo,
   requestLocation, simulateLocation, clearLocation, exportFavorites, importFavorites, loadWeather, weatherAt,
-  getReview, setReview,
+  getReview, setReview, toggleStamp,
 } from "./store.js";
 
 const main = document.getElementById("main");
 // 開催日当日はマイタイムテーブル、それ以外は出演者タブをデフォルトで開く
 let currentTab = DAYS.includes(nowInfo().date) ? "my" : "timetable";
 let map = null, markers = new Map(), meMarker = null, routeLayer = null;
+// スタンプラリー対象会場（ステージ番号）。49は9/12のみ・50は9/13のみ開催（venues.jsonのdaysで判定）
+const STAMP_STAGE_NOS = [1, 4, 10, 16, 18, 23, 24, 28, 34, 39, 45, 49, 50];
+let stampMode = false; // マップの「スタンプラリー会場のみ表示」モード
+let stampMapLayer = null, normalMapLayer = null, stampMarkerRefs = new Map(), stampVisibleIds = [];
 let ttState = { day: "", q: "", venue: "", genre: "" }; // day: "" は「すべての日程」
 // マイタイムテーブルの日付絞り込み・表示モード（list=一覧, table=スケジュール表）
 let myState = { day: DAYS.includes(nowInfo().date) ? nowInfo().date : DAYS[0], mode: "list" };
@@ -351,6 +355,7 @@ function initMap(mapDiv, wrap) {
   }).addTo(map);
 
   markers = new Map();
+  normalMapLayer = L.layerGroup();
   for (const v of store.venues) {
     const icon = L.divIcon({
       className: "stage-pin",
@@ -360,9 +365,10 @@ function initMap(mapDiv, wrap) {
     // タイアップステージは座標が未公表の場合、近隣の公式会場の座標をそのまま流用することがあり、
     // 完全に同じ地点に重なると後から描画される方が上に来て会場ピンが隠れてしまうため、
     // 番号入りの公式会場ピンを常に手前に表示する
-    const m = L.marker([v.lat, v.lng], { icon, zIndexOffset: 1000 }).addTo(map);
+    const m = L.marker([v.lat, v.lng], { icon, zIndexOffset: 1000 });
     m.bindTooltip(venueLabel(v), { direction: "top", offset: [0, -14] });
     m.bindPopup(() => popupHtml(v), { maxWidth: 260 });
+    normalMapLayer.addLayer(m);
     markers.set(v.id, m);
   }
   // 会場・タイアップの座標が完全に一致する箇所を検出（座標未公表のタイアップが近隣会場の
@@ -404,10 +410,32 @@ function initMap(mapDiv, wrap) {
       html: `<span>${t.id}</span>`,
       iconSize: isJunior ? [26, 26] : [30, 24], iconAnchor: anchor,
     });
-    const m = L.marker([t.lat, t.lng], { icon }).addTo(map);
+    const m = L.marker([t.lat, t.lng], { icon });
     m.bindTooltip(`${t.name}${t.approx ? "（位置は目安）" : ""}`, { direction: "top", offset: [0, -14] });
     m.bindPopup(tieupPopupHtml(t), { maxWidth: 260 });
+    normalMapLayer.addLayer(m);
   }
+
+  // ---------- スタンプラリー会場のみ表示するモード ----------
+  const stampDate = DAYS.includes(nowInfo().date) ? nowInfo().date : null;
+  stampMapLayer = L.featureGroup();
+  stampMarkerRefs = new Map();
+  stampVisibleIds = [];
+  for (const stageNo of STAMP_STAGE_NOS) {
+    const v = store.venues.find((x) => x.stageNo === stageNo);
+    if (!v) continue;
+    // 開催日が判明していれば、49（9/12のみ）・50（9/13のみ）のようにその日対象外の会場は出さない
+    if (stampDate && !v.days.includes(stampDate)) continue;
+    stampVisibleIds.push(v.id);
+    const m = L.marker([v.lat, v.lng], { icon: stampIcon(v) });
+    m.bindTooltip(venueLabel(v), { direction: "top", offset: [0, -16] });
+    m.bindPopup(() => stampPopupHtml(v, wrap), { maxWidth: 260 });
+    stampMapLayer.addLayer(m);
+    stampMarkerRefs.set(v.id, m);
+  }
+  (stampMode ? stampMapLayer : normalMapLayer).addTo(map);
+  renderStampProgress(wrap);
+
   if (store.location) {
     meMarker = L.circleMarker([store.location.lat, store.location.lng],
       { radius: 8, color: "#fff", weight: 2, fillColor: "#2b7de9", fillOpacity: 1 }).addTo(map);
@@ -449,7 +477,76 @@ function initMap(mapDiv, wrap) {
   };
   myRouteBtn.addTo(map);
 
+  const stampBtn = L.control({ position: "topleft" });
+  stampBtn.onAdd = () => {
+    const b = L.DomUtil.create("button", "map-loc-btn map-mode-btn");
+    b.textContent = "🎫";
+    b.title = "スタンプラリー会場のみ表示";
+    b.classList.toggle("active", stampMode);
+    L.DomEvent.on(b, "click", (e) => {
+      L.DomEvent.stop(e);
+      stampMode = !stampMode;
+      b.classList.toggle("active", stampMode);
+      if (stampMode) {
+        map.removeLayer(normalMapLayer);
+        stampMapLayer.addTo(map);
+        if (stampMapLayer.getLayers().length) map.fitBounds(stampMapLayer.getBounds(), { padding: [40, 40] });
+      } else {
+        map.removeLayer(stampMapLayer);
+        normalMapLayer.addTo(map);
+      }
+      renderStampProgress(wrap);
+    });
+    return b;
+  };
+  stampBtn.addTo(map);
+
   drawActiveRoute(wrap);
+}
+
+// スタンプラリー会場のピン。未訪問は番号、訪問済みはチェックマーク＋色で分かりやすく区別
+function stampIcon(v) {
+  const done = store.stamps.has(v.id);
+  return L.divIcon({
+    className: `stamp-pin ${done ? "done" : "todo"}`,
+    html: `<span>${done ? "✓" : v.stageNo}</span>`,
+    iconSize: [30, 30], iconAnchor: [15, 15],
+  });
+}
+
+function stampPopupHtml(v, wrap) {
+  const done = store.stamps.has(v.id);
+  const div = document.createElement("div");
+  div.className = "popup";
+  div.innerHTML = `<b>${venueLabel(v)}</b><br>${done ? "✅ スタンプ済み" : "⬜ 未スタンプ"}`;
+  const btns = document.createElement("div");
+  btns.className = "popup-btns";
+  const stampToggle = document.createElement("button");
+  stampToggle.className = "btn small";
+  stampToggle.textContent = done ? "スタンプを取り消す" : "🎫 スタンプする";
+  stampToggle.onclick = () => {
+    toggleStamp(v.id);
+    const marker = stampMarkerRefs.get(v.id);
+    marker.setIcon(stampIcon(v));
+    marker.setPopupContent(stampPopupHtml(v, wrap));
+    renderStampProgress(wrap);
+  };
+  const info = nowInfo();
+  const tt = document.createElement("button");
+  tt.className = "btn small";
+  tt.textContent = "タイムテーブル";
+  tt.onclick = () => openVenue(v.id, DAYS.includes(info.date) ? info.date : DAYS[0]);
+  btns.append(stampToggle, tt);
+  div.append(btns);
+  return div;
+}
+
+// スタンプラリーモード中、達成状況（n/対象数）をマップ上に表示
+function renderStampProgress(wrap) {
+  document.getElementById("stamp-progress")?.remove();
+  if (!stampMode) return;
+  const done = stampVisibleIds.filter((id) => store.stamps.has(id)).length;
+  wrap.append(el("div", { id: "stamp-progress", class: "stamp-progress" }, `🎫 スタンプラリー ${done}/${stampVisibleIds.length}`));
 }
 
 // 会場間（または現在地→会場）のルートを地図上に描画し、Googleリンク付きのバナーを出す

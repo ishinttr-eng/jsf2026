@@ -4,6 +4,7 @@ import { toMin, walkMinFromCoords, decodePolyline, DAYS } from "./util.js";
 
 const FAV_KEY = "jsf.favorites";
 const REVIEW_KEY = "jsf.reviews";
+const STAMP_KEY = "jsf.stamps";
 
 export const store = {
   venues: [],            // [{id, stageNo, name, lat, lng, days}]
@@ -19,6 +20,7 @@ export const store = {
   changes: [],           // [{checkedAt, sourceUpdatedAt, items:[...]}] 出演者変更の検出履歴（新しい順）
   favorites: new Set(JSON.parse(localStorage.getItem(FAV_KEY) || "[]")),
   reviews: new Map(Object.entries(JSON.parse(localStorage.getItem(REVIEW_KEY) || "{}"))), // perfKey -> {rating(0-5), note, updatedAt}
+  stamps: new Set(JSON.parse(localStorage.getItem(STAMP_KEY) || "[]")), // スタンプラリーで訪問済みの会場id（venue.id）
   location: null,        // {lat, lng} 現在地（実GPSまたはシミュレーション）
   locationSimulated: false, // locationがシミュレーション（会場選択）によるものか
   locationLabel: "",     // シミュレーション時の表示ラベル（会場名など）
@@ -109,6 +111,12 @@ export function toggleFavorite(perfId) {
   if (store.favorites.has(perfId)) store.favorites.delete(perfId);
   else store.favorites.add(perfId);
   saveFavorites();
+}
+
+export function toggleStamp(venueId) {
+  if (store.stamps.has(venueId)) store.stamps.delete(venueId);
+  else store.stamps.add(venueId);
+  localStorage.setItem(STAMP_KEY, JSON.stringify([...store.stamps]));
 }
 
 function saveReviews() {

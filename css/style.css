@@ -180,6 +180,19 @@ button.move, button.warn {
   border: 1px solid var(--panel2);
   box-shadow: 0 4px 16px rgba(0,0,0,.4);
 }
+.stamp-progress {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 900;
+  background: var(--brass);
+  color: #2b1f05;
+  font-weight: 700;
+  font-size: .8rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
 
 .btn {
   display: inline-block;
@@ -420,6 +433,29 @@ summary {
 .tieup-pin.pin-up span::after { left: 50%; transform: translateX(-50%); }
 .tieup-pin.pin-up-left span::after { right: 2px; }
 .tieup-pin.pin-up-right span::after { left: 2px; }
+/* スタンプラリー会場ピン: 未訪問=番号／訪問済み=チェックマークで見分ける */
+.stamp-pin span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: .8rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+}
+.stamp-pin.todo span {
+  background: var(--panel2);
+  color: var(--brass);
+  border: 2px dashed var(--brass);
+}
+.stamp-pin.done span {
+  background: var(--ok);
+  color: #06281a;
+  border: 2px solid #fff;
+  font-size: 1rem;
+}
 .map-loc-btn {
   width: 34px;
   height: 34px;
