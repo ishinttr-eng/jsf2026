@@ -158,7 +158,8 @@ export function requestLocation() {
         resolve(store.location);
       },
       (err) => reject(err),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      // maximumAge:0 で古いキャッシュ位置を使わず、押すたびに必ず新規測位する
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   });
 }

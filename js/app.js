@@ -365,12 +365,44 @@ function initMap(mapDiv, wrap) {
     m.bindPopup(() => popupHtml(v), { maxWidth: 260 });
     markers.set(v.id, m);
   }
+  // 会場・タイアップの座標が完全に一致する箇所を検出（座標未公表のタイアップが近隣会場の
+  // 座標をそのまま流用しているケース）。会場ピンは動かさず、重なるタイアップ側だけを
+  // 少しずらし、吹き出しの尻尾で元の地点を指すように表示する
+  const pointKey = (lat, lng) => `${lat},${lng}`;
+  const pointCount = new Map();
+  for (const v of store.venues) pointCount.set(pointKey(v.lat, v.lng), (pointCount.get(pointKey(v.lat, v.lng)) || 0) + 1);
+  for (const t of store.tieup) pointCount.set(pointKey(t.lat, t.lng), (pointCount.get(pointKey(t.lat, t.lng)) || 0) + 1);
+  const tieupCountAtKey = new Map();
+  for (const t of store.tieup) {
+    const k = pointKey(t.lat, t.lng);
+    tieupCountAtKey.set(k, (tieupCountAtKey.get(k) || 0) + 1);
+  }
+  const TIEUP_OFFSETS = [
+    { cls: "pin-up", ax: 0, ay: 20 },
+    { cls: "pin-up-left", ax: 14, ay: 20 },
+    { cls: "pin-up-right", ax: -14, ay: 20 },
+  ];
+  const tieupOffsetSeen = new Map();
+
   for (const t of store.tieup) {
     const isJunior = t.id === "J";
+    const key = pointKey(t.lat, t.lng);
+    const collides = (pointCount.get(key) || 1) > 1;
+    let offset = null;
+    if (collides) {
+      const n = tieupCountAtKey.get(key);
+      const seen = tieupOffsetSeen.get(key) || 0;
+      tieupOffsetSeen.set(key, seen + 1);
+      const plan = n >= 2 ? [TIEUP_OFFSETS[1], TIEUP_OFFSETS[2]] : [TIEUP_OFFSETS[0]];
+      offset = plan[seen % plan.length];
+    }
+    const baseAnchor = isJunior ? [13, 13] : [15, 12];
+    const anchor = offset ? [baseAnchor[0] + offset.ax, baseAnchor[1] + offset.ay] : baseAnchor;
+    const className = [isJunior ? "tieup-pin junior" : "tieup-pin", offset?.cls].filter(Boolean).join(" ");
     const icon = L.divIcon({
-      className: isJunior ? "tieup-pin junior" : "tieup-pin",
+      className,
       html: `<span>${t.id}</span>`,
-      iconSize: isJunior ? [26, 26] : [30, 24], iconAnchor: isJunior ? [13, 13] : [15, 12],
+      iconSize: isJunior ? [26, 26] : [30, 24], iconAnchor: anchor,
     });
     const m = L.marker([t.lat, t.lng], { icon }).addTo(map);
     m.bindTooltip(`${t.name}${t.approx ? "（位置は目安）" : ""}`, { direction: "top", offset: [0, -14] });

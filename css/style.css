@@ -379,6 +379,7 @@ summary {
 
 /* タイアップステージ: 赤い角丸バッジでレギュラーステージ（丸ピン）と区別 */
 .tieup-pin span {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -398,6 +399,27 @@ summary {
   border-radius: 50%;
   background: var(--accent);
 }
+/* 会場と座標が重なるタイアップピンは、ずらして吹き出しの尻尾で元の地点を指す */
+.tieup-pin.pin-up span::after,
+.tieup-pin.pin-up-left span::after,
+.tieup-pin.pin-up-right span::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid var(--ng);
+}
+.tieup-pin.junior.pin-up span::after,
+.tieup-pin.junior.pin-up-left span::after,
+.tieup-pin.junior.pin-up-right span::after {
+  border-top-color: var(--accent);
+}
+.tieup-pin.pin-up span::after { left: 50%; transform: translateX(-50%); }
+.tieup-pin.pin-up-left span::after { right: 2px; }
+.tieup-pin.pin-up-right span::after { left: 2px; }
 .map-loc-btn {
   width: 34px;
   height: 34px;
