@@ -11,6 +11,7 @@ const main = document.getElementById("main");
 // 開催日当日はマイタイムテーブル、それ以外は出演者タブをデフォルトで開く
 let currentTab = DAYS.includes(nowInfo().date) ? "my" : "timetable";
 let map = null, markers = new Map(), meMarker = null, routeLayer = null;
+let lastMapCenter = [38.2625, 140.871], lastMapZoom = 15; // マップタブを再度開いた時に直前の表示位置を復元するため
 // スタンプラリー対象会場（ステージ番号）。49は9/12のみ・50は9/13のみ開催（venues.jsonのdaysで判定）
 const STAMP_STAGE_NOS = [1, 4, 10, 16, 18, 23, 24, 28, 34, 39, 45, 49, 50];
 let stampMode = false; // マップの「スタンプラリー会場のみ表示」モード
@@ -372,10 +373,17 @@ function viewMap() {
 }
 
 function initMap(mapDiv, wrap) {
-  if (map) { map.remove(); map = null; }
+  // タブ切り替えでmapDivごと作り直されるたびに表示位置が初期値へ戻ってしまわないよう、
+  // 直前の中心・ズームを覚えておいて引き継ぐ（初回だけデフォルト位置）
+  if (map) {
+    lastMapCenter = map.getCenter();
+    lastMapZoom = map.getZoom();
+    map.remove();
+    map = null;
+  }
   // inertiaMaxSpeedの既定値はInfiniteで、素早いスワイプ操作の後に慣性で
   // マップが画面外の彼方まで飛んでいってしまうことがあるため、上限を設ける
-  map = L.map(mapDiv, { inertiaMaxSpeed: 1500 }).setView([38.2625, 140.871], 15);
+  map = L.map(mapDiv, { inertiaMaxSpeed: 1500 }).setView(lastMapCenter, lastMapZoom);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
