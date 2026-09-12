@@ -43,15 +43,19 @@ function setAutoRelocate(on) {
   localStorage.setItem(AUTO_RELOCATE_KEY, on ? "1" : "0");
   renderDetail();
 }
-document.addEventListener("visibilitychange", async () => {
-  if (document.visibilityState !== "visible" || !autoRelocate) return;
+// フォアグラウンド復帰時・アプリ内のタブ切り替え時の両方から呼ばれる
+async function refreshLocationIfAuto() {
+  if (!autoRelocate) return;
   if (!store.location || store.locationSimulated) return; // 未取得・シミュレーション中は対象外
   try {
     await requestLocation();
     // マップ表示中はズーム・中心はそのままに現在地マーカーだけ更新（画面を勝手に動かさない）
     if (currentTab === "map" && map && meMarker) meMarker.setLatLng([store.location.lat, store.location.lng]);
     else render();
-  } catch { /* 取得失敗時は何もしない。次回のフォアグラウンド復帰時に再試行される */ }
+  } catch { /* 取得失敗時は何もしない。次回のタイミングで再試行される */ }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") refreshLocationIfAuto();
 });
 
 // activeRoute: {fromId, toId, fromLabel, toLabel} | {fromHere: true, toId, toLabel} | {myRoute: true} | null
@@ -369,7 +373,9 @@ function viewMap() {
 
 function initMap(mapDiv, wrap) {
   if (map) { map.remove(); map = null; }
-  map = L.map(mapDiv).setView([38.2625, 140.871], 15);
+  // inertiaMaxSpeedの既定値はInfiniteで、素早いスワイプ操作の後に慣性で
+  // マップが画面外の彼方まで飛んでいってしまうことがあるため、上限を設ける
+  map = L.map(mapDiv, { inertiaMaxSpeed: 1500 }).setView([38.2625, 140.871], 15);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -1379,7 +1385,7 @@ function settingsModal() {
       el("div", { class: "filter-row" }, locVenueSel, locApplyBtn),
       locClearBtn ? el("div", { class: "walk-row" }, locClearBtn) : null,
       el("h2", {}, "現在地の自動更新"),
-      el("p", { class: "note" }, "オンにすると、アプリをフォアグラウンドに戻すたびに現在地を測位し直します（GPSのズレを補正しやすくなります／シミュレーション中は対象外）。"),
+      el("p", { class: "note" }, "オンにすると、アプリをフォアグラウンドに戻した時・マップタブに切り替えた時に現在地を測位し直します（GPSのズレを補正しやすくなります／シミュレーション中は対象外）。"),
       el("div", { class: "day-tabs" },
         el("button", { class: `day-tab ${autoRelocate ? "" : "active"}`, onclick: () => setAutoRelocate(false) }, "オフ"),
         el("button", { class: `day-tab ${autoRelocate ? "active" : ""}`, onclick: () => setAutoRelocate(true) }, "オン")),
@@ -1605,6 +1611,7 @@ document.getElementById("tabs").addEventListener("click", (e) => {
     myState.day = DAYS.includes(info.date) ? info.date : DAYS[0];
   }
   render();
+  if (currentTab === "map") refreshLocationIfAuto();
 });
 
 document.getElementById("settings-btn").addEventListener("click", openSettings);
