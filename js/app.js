@@ -34,6 +34,26 @@ function setFontSize(size) {
   localStorage.setItem(FONT_SIZE_KEY, size);
   renderDetail();
 }
+
+// フォアグラウンド復帰時に現在地を自動で測位し直すか（GPSシミュレーション中は対象外）
+const AUTO_RELOCATE_KEY = "jsf.autoRelocate";
+let autoRelocate = localStorage.getItem(AUTO_RELOCATE_KEY) === "1";
+function setAutoRelocate(on) {
+  autoRelocate = on;
+  localStorage.setItem(AUTO_RELOCATE_KEY, on ? "1" : "0");
+  renderDetail();
+}
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState !== "visible" || !autoRelocate) return;
+  if (!store.location || store.locationSimulated) return; // 未取得・シミュレーション中は対象外
+  try {
+    await requestLocation();
+    // マップ表示中はズーム・中心はそのままに現在地マーカーだけ更新（画面を勝手に動かさない）
+    if (currentTab === "map" && map && meMarker) meMarker.setLatLng([store.location.lat, store.location.lng]);
+    else render();
+  } catch { /* 取得失敗時は何もしない。次回のフォアグラウンド復帰時に再試行される */ }
+});
+
 // activeRoute: {fromId, toId, fromLabel, toLabel} | {fromHere: true, toId, toLabel} | {myRoute: true} | null
 let activeRoute = { myRoute: true }; // マップを開いたときのデフォルトはマイルートモード
 let myRouteIndex = 0; // マイルートで現在フォーカスしている区間（上下スワイプで移動）
@@ -1358,6 +1378,11 @@ function settingsModal() {
       el("p", { class: "note" }, locStatusText),
       el("div", { class: "filter-row" }, locVenueSel, locApplyBtn),
       locClearBtn ? el("div", { class: "walk-row" }, locClearBtn) : null,
+      el("h2", {}, "現在地の自動更新"),
+      el("p", { class: "note" }, "オンにすると、アプリをフォアグラウンドに戻すたびに現在地を測位し直します（GPSのズレを補正しやすくなります／シミュレーション中は対象外）。"),
+      el("div", { class: "day-tabs" },
+        el("button", { class: `day-tab ${autoRelocate ? "" : "active"}`, onclick: () => setAutoRelocate(false) }, "オフ"),
+        el("button", { class: `day-tab ${autoRelocate ? "active" : ""}`, onclick: () => setAutoRelocate(true) }, "オン")),
       el("h2", {}, "🔗 マイタイムテーブルの共有 / バックアップ"),
       el("p", { class: "note" }, "お気に入りを他の端末に移したり、友だちと共有したりできます。"),
       el("div", { class: "walk-row" }, shareBtn, exportBtn, importLabel),
