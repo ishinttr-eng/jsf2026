@@ -15,6 +15,7 @@ let map = null, markers = new Map(), meMarker = null, routeLayer = null;
 const STAMP_STAGE_NOS = [1, 4, 10, 16, 18, 23, 24, 28, 34, 39, 45, 49, 50];
 let stampMode = false; // マップの「スタンプラリー会場のみ表示」モード
 let stampMapLayer = null, normalMapLayer = null, stampMarkerRefs = new Map(), stampVisibleIds = [];
+let stampToggleBtn = null; // マップ検索から通常表示に戻す際、ボタンの見た目も合わせて戻すため
 let ttState = { day: "", q: "", venue: "", genre: "" }; // day: "" は「すべての日程」
 // マイタイムテーブルの日付絞り込み・表示モード（list=一覧, table=スケジュール表）
 let myState = { day: DAYS.includes(nowInfo().date) ? nowInfo().date : DAYS[0], mode: "list" };
@@ -461,6 +462,31 @@ function initMap(mapDiv, wrap) {
   };
   locBtn.addTo(map);
 
+  const searchPanel = el("div", { class: "map-search-panel" });
+  const searchInput = el("input", {
+    class: "map-search-input", type: "search", placeholder: "ステージ番号・会場名で検索",
+    oninput: (e) => renderMapSearchResults(resultsBox, e.target.value, wrap),
+  });
+  const resultsBox = el("div", { class: "map-search-results" });
+  searchPanel.append(searchInput, resultsBox);
+  wrap.append(searchPanel);
+
+  const searchBtn = L.control({ position: "topleft" });
+  searchBtn.onAdd = () => {
+    const b = L.DomUtil.create("button", "map-loc-btn map-mode-btn");
+    b.textContent = "🔍";
+    b.title = "ステージ検索";
+    L.DomEvent.on(b, "click", (e) => {
+      L.DomEvent.stop(e);
+      const open = searchPanel.classList.toggle("open");
+      b.classList.toggle("active", open);
+      if (open) searchInput.focus();
+      else { searchInput.value = ""; resultsBox.replaceChildren(); }
+    });
+    return b;
+  };
+  searchBtn.addTo(map);
+
   const myRouteBtn = L.control({ position: "topleft" });
   myRouteBtn.onAdd = () => {
     const b = L.DomUtil.create("button", "map-loc-btn map-mode-btn");
@@ -480,6 +506,7 @@ function initMap(mapDiv, wrap) {
   const stampBtn = L.control({ position: "topleft" });
   stampBtn.onAdd = () => {
     const b = L.DomUtil.create("button", "map-loc-btn map-mode-btn");
+    stampToggleBtn = b;
     b.textContent = "🎫";
     b.title = "スタンプラリー会場のみ表示";
     b.classList.toggle("active", stampMode);
@@ -547,6 +574,39 @@ function renderStampProgress(wrap) {
   if (!stampMode) return;
   const done = stampVisibleIds.filter((id) => store.stamps.has(id)).length;
   wrap.append(el("div", { id: "stamp-progress", class: "stamp-progress" }, `🎫 スタンプラリー ${done}/${stampVisibleIds.length}`));
+}
+
+// ステージ番号または会場名でマップ上の会場を検索し、候補をリスト表示する
+function renderMapSearchResults(resultsBox, query, wrap) {
+  const q = normalize(query);
+  if (!q) { resultsBox.replaceChildren(); return; }
+  const matches = store.venues
+    .filter((v) => String(v.stageNo).includes(q) || normalize(v.name).includes(q))
+    .slice(0, 8);
+  resultsBox.replaceChildren(...(matches.length
+    ? matches.map((v) => el("button", {
+      class: "map-search-row",
+      onclick: () => selectMapVenue(v, wrap),
+    }, `S${String(v.stageNo).padStart(2, "0")} ${shortVenueName(v)}`))
+    : [el("p", { class: "note" }, "該当する会場がありません")]));
+}
+
+// 検索結果タップ時: スタンプラリーモード中なら通常表示に戻し、その会場にズームしてポップアップを開く
+function selectMapVenue(v, wrap) {
+  if (stampMode) {
+    stampMode = false;
+    stampToggleBtn?.classList.remove("active");
+    map.removeLayer(stampMapLayer);
+    normalMapLayer.addTo(map);
+    renderStampProgress(wrap);
+  }
+  map.setView([v.lat, v.lng], 17);
+  markers.get(v.id)?.openPopup();
+  const panel = document.querySelector(".map-search-panel");
+  panel?.classList.remove("open");
+  const input = panel?.querySelector(".map-search-input");
+  if (input) input.value = "";
+  panel?.querySelector(".map-search-results")?.replaceChildren();
 }
 
 // 会場間（または現在地→会場）のルートを地図上に描画し、Googleリンク付きのバナーを出す
