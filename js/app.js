@@ -357,7 +357,10 @@ function initMap(mapDiv, wrap) {
       html: `<span>${v.stageNo}</span>`,
       iconSize: [26, 26], iconAnchor: [13, 13],
     });
-    const m = L.marker([v.lat, v.lng], { icon }).addTo(map);
+    // タイアップステージは座標が未公表の場合、近隣の公式会場の座標をそのまま流用することがあり、
+    // 完全に同じ地点に重なると後から描画される方が上に来て会場ピンが隠れてしまうため、
+    // 番号入りの公式会場ピンを常に手前に表示する
+    const m = L.marker([v.lat, v.lng], { icon, zIndexOffset: 1000 }).addTo(map);
     m.bindTooltip(venueLabel(v), { direction: "top", offset: [0, -14] });
     m.bindPopup(() => popupHtml(v), { maxWidth: 260 });
     markers.set(v.id, m);
