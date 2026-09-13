@@ -1,6 +1,6 @@
 // JSF Navi 2026 Service Worker
 // VERSION を上げると全キャッシュが更新される（データ更新時はここを変える）
-const VERSION = "v65";
+const VERSION = "v66";
 const CACHE = `jsf-navi-${VERSION}`;
 
 const APP_SHELL = [
@@ -17,6 +17,7 @@ const APP_SHELL = [
   "data/tieup.json",
   "data/checked.json",
   "data/changes.json",
+  "data/app_changelog.json",
   "icon.svg",
   "manifest.webmanifest",
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",

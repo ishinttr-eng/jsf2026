@@ -28,6 +28,7 @@ export const store = {
   // 開催日の時間別天気予報（未取得・失敗時はnull）
   // { hourly: {"2026-09-12T11": {code, temp, pop}, ...} }
   weather: null,
+  appChangelog: [], // アプリ自体の更新履歴 [{version, date, text}, ...]（新しい順）
 };
 
 export async function loadData() {
@@ -72,6 +73,14 @@ export async function loadData() {
     store.changes = (c?.history || []).slice().reverse(); // 新しい順
   } catch {
     store.changes = [];
+  }
+
+  // アプリ自体の更新履歴（手動更新、開発側でsw.jsのVERSIONを上げるたびに追記）
+  try {
+    const a = await fetch("data/app_changelog.json").then((r) => (r.ok ? r.json() : null));
+    store.appChangelog = a?.entries || [];
+  } catch {
+    store.appChangelog = [];
   }
 }
 

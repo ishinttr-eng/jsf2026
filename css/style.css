@@ -698,3 +698,13 @@ summary {
 .change-item.removed { border-left-color: var(--ng); }
 .change-item.modified { border-left-color: var(--accent); }
 .change-item .venue { display: block; font-size: .72rem; color: var(--muted); margin-bottom: 2px; }
+.change-item .tag {
+  display: inline-block;
+  font-family: monospace;
+  font-size: .68rem;
+  color: var(--muted);
+  background: var(--panel2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-right: 6px;
+}

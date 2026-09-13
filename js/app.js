@@ -1402,13 +1402,31 @@ function settingsModal() {
       el("div", { class: "walk-row" }, shareBtn, exportBtn, importLabel),
       el("p", { class: "note" }, "公式サイトのお気に入りページ（マイプラン）の「予定を共有する」リンクも読み込めます。"),
       el("div", { class: "filter-row" }, pasteInput, pasteBtn),
-      shareNote ? el("p", { class: "note" }, shareNote) : null));
+      shareNote ? el("p", { class: "note" }, shareNote) : null,
+      el("h2", {}, "📢 更新履歴"),
+      el("p", { class: "note" }, "アプリ自体の更新内容と、出演者情報の変更履歴をまとめて確認できます。"),
+      el("div", { class: "walk-row" }, el("button", { class: "btn small", onclick: openChanges }, "更新履歴を見る"))));
 }
 
 const OFFICIAL_PERFORMERS_URL = "https://www.j-streetjazz.com/entry/performers2026/";
 
 function changesModal() {
-  const body = store.changes.length
+  // アプリ自体の更新履歴（新しい順の配列を、連続する同じ日付でグループ化）
+  const appGroups = [];
+  for (const entry of store.appChangelog) {
+    const last = appGroups[appGroups.length - 1];
+    if (last && last.date === entry.date) last.items.push(entry);
+    else appGroups.push({ date: entry.date, items: [entry] });
+  }
+  const appBody = appGroups.length
+    ? appGroups.map((g) => el("div", { class: "changes-entry" },
+        el("div", { class: "changes-entry-head" },
+          el("span", { class: "changes-entry-date" }, g.date)),
+        g.items.map((it) => el("div", { class: "change-item" },
+          el("span", { class: "tag" }, it.version), it.text))))
+    : el("p", { class: "note" }, "アプリの更新履歴はまだありません。");
+
+  const officialBody = store.changes.length
     ? store.changes.map((entry) => el("div", { class: "changes-entry" },
         el("div", { class: "changes-entry-head" },
           el("span", { class: "changes-entry-date" }, `確認: ${fmtDateTime(entry.checkedAt)}`),
@@ -1421,9 +1439,13 @@ function changesModal() {
   return el("div", { id: "modal", onclick: (e) => { if (e.target.id === "modal") closeDetail(); } },
     el("div", { class: "modal-body" },
       el("div", { class: "modal-head" },
-        el("h2", {}, "📢 出演者変更履歴"),
+        el("h2", {}, "📢 更新履歴"),
         el("button", { class: "close", onclick: closeDetail }, "✕")),
-      el("div", { class: "modal-list" }, body)));
+      el("div", { class: "modal-list" },
+        el("h2", {}, "📱 アプリの更新"),
+        appBody,
+        el("h2", {}, "🎤 出演者情報の変更"),
+        officialBody)));
 }
 
 function changeItemText(it) {
