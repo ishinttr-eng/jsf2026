@@ -77,6 +77,21 @@
      "end": "17:30"
     }
    ]
+  },
+  {
+   "checkedAt": "2026-09-13T03:18:32Z",
+   "sourceUpdatedAt": "2026-09-13T03:17:23.944Z",
+   "items": [
+    {
+     "kind": "removed",
+     "date": "2026-09-13",
+     "venueId": "S-33",
+     "venueName": "仙台ファーストタワー前",
+     "name": "Sound Of Spirit",
+     "start": "15:30",
+     "end": "16:00"
+    }
+   ]
   }
  ]
 }
