@@ -1,8 +1,9 @@
 name: 出演者データを自動更新
 
 on:
-  schedule:
-    - cron: "0 */3 * * *"
+  # 2026年大会は終了したため定期実行は停止中。来年再開する際は下記2行のコメントを外す
+  # schedule:
+  #   - cron: "0 */3 * * *"
   workflow_dispatch: {}
 
 permissions:
