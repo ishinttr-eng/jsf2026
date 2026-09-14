@@ -927,18 +927,10 @@ function tieupPopupHtml(t) {
 
 function viewMy() {
   const wrap = el("div", { class: "view" });
-
-  if (isFestivalOver()) {
-    wrap.append(el("div", { class: "festival-over-panel" },
-      "このページはまた来年更新します。来年のためにエクスポートしておくことをおすすめします。"),
-      el("div", { class: "walk-row" },
-        el("button", { class: "btn small", onclick: exportFavoritesFile }, "⬇️ ファイルに書き出す")));
-  }
-
   const favs = store.performances.filter((p) => store.favorites.has(perfKey(p)));
   if (!favs.length) {
     wrap.append(el("p", { class: "note" }, "☆をタップしてお気に入り登録すると、ここに自分のタイムテーブルができます。"));
-    return wrap;
+    return finishMyView(wrap);
   }
 
   const badge = simBadge();
@@ -961,7 +953,7 @@ function viewMy() {
   wrap.append(el("div", { class: "my-tabs-sticky" }, dayTabs, modeTabs));
 
   const list = favs.filter((p) => p.date === myState.day);
-  if (!list.length) return wrap;
+  if (!list.length) return finishMyView(wrap);
 
   if (myState.mode === "table") {
     renderMySchedule(wrap, list, myState.day);
@@ -974,6 +966,15 @@ function viewMy() {
         el("summary", {}, `🏁 終了したステージ（${finished.length}）`),
         finished.map((p) => perfCard(p, {}))));
     }
+  }
+  return finishMyView(wrap);
+}
+
+// 全日程終了後は、来年に向けたエクスポート導線をページ最下部に表示する
+function finishMyView(wrap) {
+  if (isFestivalOver()) {
+    wrap.append(el("div", { class: "walk-row" },
+      el("button", { class: "btn small", onclick: exportFavoritesFile }, "⬇️ ファイルに書き出す")));
   }
   return wrap;
 }
