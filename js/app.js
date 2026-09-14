@@ -21,6 +21,8 @@ let ttState = { day: "", q: "", venue: "", genre: "" }; // day: "" は「すべ�
 // マイタイムテーブルの日付絞り込み・表示モード（list=一覧, table=スケジュール表）
 let myState = { day: DAYS.includes(nowInfo().date) ? nowInfo().date : DAYS[0], mode: "list" };
 let expandedVenues = new Set(); // 出演者タブで開いている会場の<details>を再描画後も維持するため
+// 「終了したステージ」アコーディオンの開閉状態を、タブ切り替え・日付切り替えをまたいで維持するため
+let finishedOpen = { now: false, timetable: false, my: false };
 // detail: {kind:"venue", venueId, day, from} | {kind:"artist", perf} | {kind:"changes"} | {kind:"settings"} | null
 let detail = null;
 const CHANGES_SEEN_KEY = "jsf.changesSeenAt";
@@ -274,11 +276,16 @@ function viewNow() {
 
   const finishedVenues = store.venues.filter((v) => isVenueFinished(v.id, info.date));
   if (finishedVenues.length) {
-    wrap.append(el("details", { class: "finished-section" },
+    const det = el("details", {
+      class: "finished-section",
+      ontoggle: (e) => { finishedOpen.now = e.target.open; },
+    },
       el("summary", {}, `🏁 終了したステージ（${finishedVenues.length}）`),
       finishedVenues.map((v) => el("div", {
         class: "card", onclick: () => openVenue(v.id, info.date),
-      }, el("div", { class: "name" }, stageLabel(v))))));
+      }, el("div", { class: "name" }, stageLabel(v)))));
+    det.open = finishedOpen.now;
+    wrap.append(det);
   }
   return wrap;
 }
@@ -391,9 +398,14 @@ function renderTTList(box) {
     else box.append(venueDetails(v, ps));
   }
   if (finished.length) {
-    box.append(el("details", { class: "finished-section" },
+    const det = el("details", {
+      class: "finished-section",
+      ontoggle: (e) => { finishedOpen.timetable = e.target.open; },
+    },
       el("summary", {}, `🏁 終了したステージ（${finished.length}）`),
-      finished.map(([v, ps]) => venueDetails(v, ps))));
+      finished.map(([v, ps]) => venueDetails(v, ps)));
+    det.open = finishedOpen.timetable;
+    box.append(det);
   }
 }
 
@@ -965,9 +977,14 @@ function viewMy() {
     const finished = list.filter((p) => isVenueFinished(p.venueId, myState.day));
     if (active.length) renderMyList(wrap, active);
     if (finished.length) {
-      wrap.append(el("details", { class: "finished-section" },
+      const det = el("details", {
+        class: "finished-section",
+        ontoggle: (e) => { finishedOpen.my = e.target.open; },
+      },
         el("summary", {}, `🏁 終了したステージ（${finished.length}）`),
-        finished.map((p) => perfCard(p, {}))));
+        finished.map((p) => perfCard(p, {})));
+      det.open = finishedOpen.my;
+      wrap.append(det);
     }
   }
   return finishMyView(wrap);
