@@ -53,6 +53,7 @@ body {
   cursor: pointer;
   white-space: nowrap;
 }
+.changes-badge.muted { background: var(--panel2); color: var(--muted); font-weight: 500; }
 .settings-btn {
   background: none;
   border: none;

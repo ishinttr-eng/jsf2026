@@ -1442,10 +1442,10 @@ function changesModal() {
         el("h2", {}, "📢 更新履歴"),
         el("button", { class: "close", onclick: closeDetail }, "✕")),
       el("div", { class: "modal-list" },
-        el("h2", {}, "📱 アプリの更新"),
-        appBody,
         el("h2", {}, "🎤 出演者情報の変更"),
-        officialBody)));
+        officialBody,
+        el("h2", {}, "📱 アプリの更新"),
+        appBody)));
 }
 
 function changeItemText(it) {
@@ -1469,15 +1469,16 @@ function fmtDateTime(iso) {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-// ヘッダーの変更通知バッジ（未読があれば表示、クリックで履歴モーダルを開く）
+// ヘッダーの更新履歴ボタン。未読の出演者変更があれば目立つ表示、無くても常に表示して更新履歴を開けるようにする
 function updateChangesBadge() {
   const badge = document.getElementById("changes-badge");
   if (!badge) return;
   const latest = store.changes[0];
   const seenAt = localStorage.getItem(CHANGES_SEEN_KEY);
   const unseen = latest && latest.checkedAt !== seenAt;
-  badge.hidden = !unseen;
-  if (unseen) badge.textContent = `📢 変更あり（${latest.items.length}）`;
+  badge.hidden = false;
+  badge.classList.toggle("muted", !unseen);
+  badge.textContent = unseen ? `📢 変更あり（${latest.items.length}）` : "📢 更新履歴";
   badge.onclick = openChanges;
 }
 
