@@ -942,7 +942,10 @@ function viewMy() {
       onclick: () => { myState.day = d; render(); },
     }, DAY_LABELS[d])));
 
-  const modeTabs = el("div", { class: "day-tabs mode-tabs" },
+  // 全日程終了後はスケジュール表モードが不要なため、モード切替タブごと省いて日付タブだけにする
+  const over = isFestivalOver();
+  if (over) myState.mode = "list";
+  const modeTabs = over ? null : el("div", { class: "day-tabs mode-tabs" },
     [{ value: "list", label: "リスト" }, { value: "table", label: "スケジュール表" }]
       .map(({ value, label }) => el("button", {
         class: `day-tab ${myState.mode === value ? "active" : ""}`,
