@@ -164,6 +164,25 @@ export function nowInfo() {
   return { date, min: d.getHours() * 60 + d.getMinutes(), simulated: false };
 }
 
+// 会場の演目がすべて終了しているか。dateを指定するとその日だけで判定（演奏中・出演者・マイタイムテーブル向け）、
+// 省略するとその会場の全出演日程を通して判定する（会場の枠を持たないマップ表示向け）
+export function isVenueFinished(venueId, date) {
+  const info = nowInfo();
+  const perfs = store.performances.filter((p) => p.venueId === venueId && (date == null || p.date === date));
+  if (!perfs.length) return false;
+  return perfs.every((p) => p.date < info.date || (p.date === info.date && p.endMin <= info.min));
+}
+
+// 開催全日程の演目がすべて終了しているか（フェス終了後の簡易画面切り替えに使う）
+export function isFestivalOver() {
+  const info = nowInfo();
+  const lastDay = DAYS[DAYS.length - 1];
+  if (info.date > lastDay) return true;
+  if (info.date < lastDay) return false;
+  const perfs = store.performances.filter((p) => p.date === lastDay);
+  return perfs.length > 0 && perfs.every((p) => p.endMin <= info.min);
+}
+
 export function requestLocation() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error("位置情報が利用できません"));

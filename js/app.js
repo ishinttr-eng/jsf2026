@@ -4,7 +4,7 @@ import { DAYS, DAY_LABELS, fmtMin, normalize, perfKey, el, gmapsWalkUrl, haversi
 import {
   store, loadData, walkBetween, walkFromHere, getRoute, toggleFavorite, nowInfo,
   requestLocation, simulateLocation, clearLocation, exportFavorites, importFavorites, loadWeather, weatherAt,
-  getReview, setReview, toggleStamp,
+  getReview, setReview, toggleStamp, isVenueFinished, isFestivalOver,
 } from "./store.js";
 
 const main = document.getElementById("main");
@@ -219,6 +219,12 @@ function viewNow() {
   const info = nowInfo();
   const wrap = el("div", { class: "view" });
 
+  if (isFestivalOver()) {
+    wrap.append(el("div", { class: "festival-over-panel" },
+      "全てのプログラムが終了しました。\nアーティストの皆様、そして運営スタッフの皆様、二日間ご苦労様でした。\nそして本当にありがとうございました。\n来年も楽しみにしております。"));
+    return wrap;
+  }
+
   // 時刻シミュレーション中はバッジで表示（切り替え自体は⚙️設定へ移動）
   const badge = simBadge();
   if (badge) {
@@ -265,6 +271,15 @@ function viewNow() {
   };
   section("🎷 いま演奏中", playing, false);
   section("🕒 もうすぐ開始（30分以内）", soon, true);
+
+  const finishedVenues = store.venues.filter((v) => isVenueFinished(v.id, info.date));
+  if (finishedVenues.length) {
+    wrap.append(el("details", { class: "finished-section" },
+      el("summary", {}, `🏁 終了したステージ（${finishedVenues.length}）`),
+      finishedVenues.map((v) => el("div", {
+        class: "card", onclick: () => openVenue(v.id, info.date),
+      }, el("div", { class: "name" }, stageLabel(v))))));
+  }
   return wrap;
 }
 
@@ -342,22 +357,43 @@ function renderTTList(box) {
   if (ttState.venue || q) {
     // 会場指定・検索時はフラットに時刻順（日付をまたぐ場合は日付バッジを表示）
     for (const p of list) box.append(perfCard(p, { dayLabel: crossDate }));
-  } else {
-    // 会場ごとにグループ表示（日付をまたぐ場合は日付バッジを表示）
+    return;
+  }
+
+  const venueDetails = (v, ps) => {
+    const det = el("details", {
+      ontoggle: (e) => {
+        if (e.target.open) expandedVenues.add(v.id);
+        else expandedVenues.delete(v.id);
+      },
+    },
+      el("summary", {}, `${venueLabel(v)}（${ps.length}）`),
+      ps.map((p) => perfCard(p, { dayLabel: crossDate })));
+    det.open = expandedVenues.has(v.id);
+    return det;
+  };
+
+  // 会場ごとにグループ表示。「すべての日程」表示時は1会場が両日にまたがり得るため、
+  // 終了済み/未終了の判定はできず対象外（特定の日付を選んでいる時だけ終了ステージを分離する）
+  if (crossDate) {
     for (const v of store.venues) {
       const ps = list.filter((p) => p.venueId === v.id);
-      if (!ps.length) continue;
-      const det = el("details", {
-        ontoggle: (e) => {
-          if (e.target.open) expandedVenues.add(v.id);
-          else expandedVenues.delete(v.id);
-        },
-      },
-        el("summary", {}, `${venueLabel(v)}（${ps.length}）`),
-        ps.map((p) => perfCard(p, { dayLabel: crossDate })));
-      det.open = expandedVenues.has(v.id);
-      box.append(det);
+      if (ps.length) box.append(venueDetails(v, ps));
     }
+    return;
+  }
+
+  const finished = [];
+  for (const v of store.venues) {
+    const ps = list.filter((p) => p.venueId === v.id);
+    if (!ps.length) continue;
+    if (isVenueFinished(v.id, ttState.day)) finished.push([v, ps]);
+    else box.append(venueDetails(v, ps));
+  }
+  if (finished.length) {
+    box.append(el("details", { class: "finished-section" },
+      el("summary", {}, `🏁 終了したステージ（${finished.length}）`),
+      finished.map(([v, ps]) => venueDetails(v, ps))));
   }
 }
 
@@ -392,8 +428,10 @@ function initMap(mapDiv, wrap) {
   markers = new Map();
   normalMapLayer = L.layerGroup();
   for (const v of store.venues) {
+    // 会場の出演がすべて終了していれば、半透明にして「もう見られない」ことを見た目でも示す
+    const finished = isVenueFinished(v.id);
     const icon = L.divIcon({
-      className: "stage-pin",
+      className: `stage-pin${finished ? " finished" : ""}`,
       html: `<span>${v.stageNo}</span>`,
       iconSize: [26, 26], iconAnchor: [13, 13],
     });
@@ -889,6 +927,14 @@ function tieupPopupHtml(t) {
 
 function viewMy() {
   const wrap = el("div", { class: "view" });
+
+  if (isFestivalOver()) {
+    wrap.append(el("div", { class: "festival-over-panel" },
+      "このページはまた来年更新します。来年のためにエクスポートしておくことをおすすめします。"),
+      el("div", { class: "walk-row" },
+        el("button", { class: "btn small", onclick: exportFavoritesFile }, "⬇️ ファイルに書き出す")));
+  }
+
   const favs = store.performances.filter((p) => store.favorites.has(perfKey(p)));
   if (!favs.length) {
     wrap.append(el("p", { class: "note" }, "☆をタップしてお気に入り登録すると、ここに自分のタイムテーブルができます。"));
@@ -920,7 +966,14 @@ function viewMy() {
   if (myState.mode === "table") {
     renderMySchedule(wrap, list, myState.day);
   } else {
-    renderMyList(wrap, list);
+    const active = list.filter((p) => !isVenueFinished(p.venueId, myState.day));
+    const finished = list.filter((p) => isVenueFinished(p.venueId, myState.day));
+    if (active.length) renderMyList(wrap, active);
+    if (finished.length) {
+      wrap.append(el("details", { class: "finished-section" },
+        el("summary", {}, `🏁 終了したステージ（${finished.length}）`),
+        finished.map((p) => perfCard(p, {}))));
+    }
   }
   return wrap;
 }
@@ -1620,7 +1673,17 @@ function reviewSection(p) {
 
 const views = { now: viewNow, timetable: viewTimetable, map: viewMap, my: viewMy };
 
+// 全日程終了後は出演者・マップタブを畳んで「演奏中」「マイタイムテーブル」だけのシンプルな画面にする
+function updateTabsVisibility() {
+  const over = isFestivalOver();
+  for (const b of document.querySelectorAll(".tab-btn")) {
+    b.hidden = over && (b.dataset.tab === "timetable" || b.dataset.tab === "map");
+  }
+  if (over && (currentTab === "timetable" || currentTab === "map")) currentTab = "now";
+}
+
 function render() {
+  updateTabsVisibility();
   const view = views[currentTab]();
   main.replaceChildren(view);
   for (const b of document.querySelectorAll(".tab-btn")) {

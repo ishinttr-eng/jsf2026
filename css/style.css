@@ -379,6 +379,22 @@ summary {
   font-size: .85rem;
   font-weight: 600;
 }
+.finished-section { margin: 18px 0 8px; }
+.finished-section > summary { color: var(--muted); }
+.finished-section .card { opacity: .7; }
+
+.festival-over-panel {
+  background: var(--panel2);
+  border: 1px solid var(--brass);
+  border-radius: 12px;
+  padding: 20px 18px;
+  margin: 8px 0 16px;
+  font-size: .95rem;
+  line-height: 1.9;
+  color: var(--text);
+  white-space: pre-line;
+  text-align: center;
+}
 
 #tabs {
   display: flex;
@@ -402,6 +418,7 @@ summary {
   transition: color .15s, background-color .15s, border-color .15s;
 }
 .tab-btn span { font-size: .65rem; }
+.tab-btn[hidden] { display: none; }
 .tab-btn.active {
   color: var(--brass);
   background: rgba(232, 182, 76, .14);
@@ -433,6 +450,7 @@ summary {
   border: 2px solid #fff;
   box-shadow: 0 1px 4px rgba(0,0,0,.4);
 }
+.stage-pin.finished span { opacity: .4; }
 
 /* タイアップステージ: 赤い角丸バッジでレギュラーステージ（丸ピン）と区別 */
 .tieup-pin span {
